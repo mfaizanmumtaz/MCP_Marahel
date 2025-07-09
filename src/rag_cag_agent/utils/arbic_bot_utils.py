@@ -1,5 +1,4 @@
 import os
-import sys
 
 # Add the project root to Python path
 # current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -9,11 +8,8 @@ import sys
 
 import asyncio
 import logging
-from typing import List, Optional, Dict, Any
-from langchain_core.documents import Document
 from langchain_core.prompts.chat import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from operator import itemgetter
 from rag_cag_agent.utils.document_relevance_checker import filter_relevant_documents
 from rag_cag_agent.prompts.prompts_for_rag import (
     system_prompt_for_rag_based_generation as system_prompt_for_rag,
@@ -25,15 +21,9 @@ from rag_cag_agent.prompts.prompts_for_cag import (
 )
 from rag_cag_agent.prompts.generals_prompts import query_standalone_prompt
 from langchain_postgres.vectorstores import PGVector
-from langchain_core.runnables import RunnablePassthrough
-from langchain_openai import ChatOpenAI
 from rag_cag_agent.schemas.arbic_bot_schema import ResponseFormatterForCag
 from rag_cag_agent.utils.history_formatter import HistoryFormatter
-import re
 from rag_cag_agent.utils.translation_utils import translate_text
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import PyMuPDFLoader
-from langchain_community.document_loaders import PyPDFLoader
 from langdetect import detect, DetectorFactory
 
 # Optional import for Qdrant - fallback if not available
@@ -89,8 +79,6 @@ def detect_language(text: str) -> str:
             f"Language detection error for text: {text[:30]}... Error: {str(ex)}"
         )
         return "arabic"  # Default to Arabic in case of errors
-
-
 
 
 def _combine_documents3(docs, document_separator="\n\n"):
@@ -179,7 +167,7 @@ async def get_response(
         vector_store_types = (PGVector,)
         if QdrantVectorStore is not None:
             vector_store_types = (QdrantVectorStore, PGVector)
-            
+
         if isinstance(database, vector_store_types):
             logger.info(f"Processing query: {original_query[:10]}...")
 
@@ -221,7 +209,7 @@ async def get_response(
         vector_store_types = (PGVector,)
         if QdrantVectorStore is not None:
             vector_store_types = (QdrantVectorStore, PGVector)
-            
+
         if isinstance(database, vector_store_types):
             # For Rag Response
             sources = ExtractRelevantMetadata(docs)

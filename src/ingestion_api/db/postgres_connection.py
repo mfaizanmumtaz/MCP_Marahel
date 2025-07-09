@@ -1,18 +1,20 @@
 import os
 import sys
 import asyncio
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 
-load_dotenv()
+load_dotenv(find_dotenv())
 
 # Fix for Windows asyncio compatibility with psycopg
 if sys.platform.startswith("win"):
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 pgvector_connection = os.getenv("pgvector_connection")
+if not pgvector_connection:
+    raise ValueError("pgvector_connection environment variable is required")
 
 # Create async SQLAlchemy engine
 async_engine = create_async_engine(pgvector_connection)

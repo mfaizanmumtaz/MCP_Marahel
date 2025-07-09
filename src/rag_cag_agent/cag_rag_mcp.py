@@ -1,88 +1,61 @@
-import os
-import sys
 import json
-from sqlalchemy import select, delete
+from sqlalchemy import select
 from langchain_postgres.vectorstores import PGVector
-from sqlalchemy.ext.asyncio import AsyncSession
 
-# Add the project root to Python path
 
-from rag_cag_agent.database.connection import async_session
-from rag_cag_agent.database.models import Collections_Dev, ChatHistory, RawData, UserFile
+from rag_cag_agent.database.connection import get_db
+from rag_cag_agent.database.models import Collections_Dev, ChatHistory, RawData
 from rag_cag_agent.utils.uuid_validater import validate_uuid
 from langchain_openai import OpenAIEmbeddings
 
 # Optional import for Qdrant - fallback if not available
 from rag_cag_agent.database.qdrant_class import QdrantInsertRetrievalAll
+
 qdrant = QdrantInsertRetrievalAll()
 
 from langchain_core.documents import Document
-from pydantic import BaseModel, Field
-from typing import Optional, List
-from fastapi import APIRouter
-from fastapi.responses import JSONResponse
-from fastapi import UploadFile, Form, status, Depends
+from fastapi import status
 from rag_cag_agent.utils.arbic_bot_utils import get_response
-from rag_cag_agent.schemas.arbic_bot_schema import (
-    QueryInput,
-    DeleteCollectionInput,
-    CustomInstructionInput,
-)
-import tempfile
-import random
-import datetime
-from rag_cag_agent.prompts.generals_prompts import greeting_classifier_prompt
-import string
 from langchain_openai import ChatOpenAI
-import ast
-from langchain_core.prompts.chat import ChatPromptTemplate
-from operator import itemgetter
 from langchain_anthropic import ChatAnthropic
-from rag_cag_agent.database.pg_vector import pg_insertion, pg_deletion
-import aiofiles
-import aiofiles.os
-import asyncio
 from fastapi import HTTPException
 from rag_cag_agent.config.settings import settings
-from langchain_core.tools import tool
 
 
 class KnowledgeBase:
     def __init__(self, chatbot_id: str, user_id: str):
         self.chatbot_id = chatbot_id
         self.user_id = user_id
-        self.db = None
-
-    async def get_knowledge_base(self, query_user: str):
-        """When user ask any question.you thought you cannot answer , this tool will be used to get the knowledge base from the database.
-        This tool searches through the stored knowledge base to find the most relevant information
-        that matches the user's query. It takes into account the user's chat history and uses 
-        advanced embedding models to find semantically similar content. The tool handles both 
-        English and Arabic queries and returns well-formatted responses.
-        Example Query:
-        Input: What this document is about?
-        """
         
-        try:
-            self.db = async_session()
-            
-            # Validate chatbot_id
-            if not validate_uuid(self.chatbot_id):
-                return {
-                    "error": "Invalid chatbot_id uuid format.",
-                    "status": "error"
-                }
+    async def get_knowledge_base(self, query_user: str):
+        """Tool to search through the stored knowledge base to find the most relevant information 
+        that matches the user's query. This tool uses advanced embedding models to find semantically 
+        similar content and handles both English and Arabic queries. It takes into account the user's 
+        chat history and returns well-formatted responses. Always use this tool when you cannot answer a question with your other existing tools.when user ask any question and you thought you cannot answer,please use this tool to get the knowledge base answer.just put the same user query in the tool call and you will get the appropriate answer.
+        
+        Args:
+            query_user (str): The user's question or query to search for in the knowledge base. 
+                            Examples: 'What is this document about?', 'Tell me about the company policies', 
+                            'How does this system work?'
+        
+        Returns:
+            Relevant final answer from the knowledge base that matches the user's query.
+        """
 
+        # Validate chatbot_id
+        if not validate_uuid(self.chatbot_id):
+            return {"error": "Invalid chatbot_id uuid format.", "status": "error"}
+
+        db_generator = get_db()
+        db = await db_generator.__anext__()
+        try:
             # Fetch collection metadata
             stmt = select(Collections_Dev).filter_by(chatbot_id=self.chatbot_id)
-            result = await self.db.execute(stmt)
+            result = await db.execute(stmt)
             collection = result.scalar_one_or_none()
 
             if not collection:
-                return {
-                    "error": "Collection not found",
-                    "status": "error"
-                }
+                return {"error": "Collection not found", "status": "error"}
 
             llm_type = collection.llm
 
@@ -93,7 +66,7 @@ class KnowledgeBase:
                 .order_by(ChatHistory.id.desc())
                 .limit(30)
             )
-            result = await self.db.execute(history_query)
+            result = await db.execute(history_query)
             chat_history = result.scalars().all()
 
             embeddings_model = collection.embeddings_model
@@ -109,23 +82,28 @@ class KnowledgeBase:
                     llm_model = ChatOpenAI(
                         temperature=0,
                         model=settings.OPENAI_MODEL,
-                        openai_api_key=settings.OPENAI_API_KEY,
                     )
-                except Exception as e:
+                except Exception:
                     return {
                         "error": "Error initializing OpenAI LLM. Please set the model name in the .env file.",
-                        "status": "error"
+                        "status": "error",
                     }
 
             elif llm_type == "claude":
-                llm_model = ChatAnthropic(
-                    model=settings.CLAUDE_MODEL,
-                    api_key=settings.CLAUDE_API_KEY
-                )
+                try:
+                    llm_model = ChatAnthropic(
+                        model_name=settings.CLAUDE_MODEL,
+                        timeout=30
+                    )
+                except Exception:
+                    return {
+                        "error": "Error initializing Claude LLM. Please check the model configuration.",
+                        "status": "error",
+                    }
             else:
                 return {
                     "error": "Invalid LLM model; please pass either openai, claude, or cohere.",
-                    "status": "error"
+                    "status": "error",
                 }
 
             # Retrieval from vector store or DB
@@ -138,42 +116,30 @@ class KnowledgeBase:
                     async_mode=True,
                 )
                 results, source = await get_response(
-                    query_user,
-                    vector_store,
-                    chat_history,
-                    None,
-                    llm_model
+                    query_user, vector_store, chat_history, None, llm_model
                 )
 
             elif vectorstore_name == "qdrant":
                 if qdrant:
                     vector_store = await qdrant.retrieval(
-                        collection_name=collection_, 
-                        embeddings=embeddings
+                        collection_name=collection_, embeddings=embeddings
                     )
                     results, source = await get_response(
-                        query_user,
-                        vector_store,
-                        chat_history,
-                        None,
-                        llm_model
+                        query_user, vector_store, chat_history, None, llm_model
                     )
                 else:
-                    return {
-                        "error": "Qdrant is not available",
-                        "status": "error"
-                    }
+                    return {"error": "Qdrant is not available", "status": "error"}
 
             elif vectorstore_name == "postgres":
                 # Fetch data with chatbot_id
                 stmt = select(RawData).filter(RawData.chatbot_id == self.chatbot_id)
-                result = await self.db.execute(stmt)
+                result = await db.execute(stmt)
                 raw_records = result.scalars().all()
 
                 if not raw_records:
                     return {
                         "error": f"No data found for this chatbot_id: {self.chatbot_id}",
-                        "status": "error"
+                        "status": "error",
                     }
 
                 # Combine data from all records
@@ -184,17 +150,13 @@ class KnowledgeBase:
                     all_docs.extend(docs)
 
                 results, source = await get_response(
-                    query_user, 
-                    all_docs, 
-                    chat_history, 
-                    None,
-                    llm_model
+                    query_user, all_docs, chat_history, None, llm_model
                 )
 
             else:
                 return {
                     "error": "Could not find the vectorstore database",
-                    "status": "error"
+                    "status": "error",
                 }
 
             # Save history
@@ -205,33 +167,26 @@ class KnowledgeBase:
             )
 
             # Commit the session
-            await self.db.commit()
+            await db.commit()
 
             return {
                 "message": "Response Generated Successfully!",
                 "data": {"response": results, "source": source},
-                "status": "success"
+                "status": "success",
             }
 
         except Exception as ex:
-            if self.db:
-                await self.db.rollback()
-            return {
-                "error": f"An error occurred: {str(ex)}",
-                "status": "error"
-            }
+            await db.rollback()
+            return {"error": f"An error occurred: {str(ex)}", "status": "error"}
         finally:
-            if self.db:
-                await self.db.close()
+            await db.close()
 
     async def _save_history_in_background(
-        self,
-        query: str,
-        response: str,
-        collection_uuid: str
+        self, query: str, response: str, collection_uuid: str
     ):
+        db_generator = get_db()
+        db = await db_generator.__anext__()
         try:
-            self.db = async_session()
             new_history = ChatHistory(
                 chatbot_id=self.chatbot_id,
                 user_id=self.user_id,
@@ -239,15 +194,13 @@ class KnowledgeBase:
                 response=response,
                 collection_uuid=collection_uuid,
             )
-            self.db.add(new_history)
-            await self.db.commit()
+            db.add(new_history)
+            await db.commit()
         except Exception as e:
-            if self.db:
-                await self.db.rollback()
+            await db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to save chat history: {str(e)}"
+                detail=f"Failed to save chat history: {str(e)}",
             )
         finally:
-            if self.db:
-                await self.db.close()
+            await db.close()

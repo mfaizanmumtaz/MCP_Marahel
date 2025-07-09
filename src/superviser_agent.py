@@ -1,163 +1,89 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from langgraph.graph import MessagesState, START, StateGraph
-from langgraph.prebuilt import tools_condition
-from langgraph.prebuilt import ToolNode
-from langchain_core.messages import HumanMessage, SystemMessage
+from fastapi import APIRouter, HTTPException
 from rag_cag_agent.cag_rag_mcp import KnowledgeBase
 from langchain_openai import ChatOpenAI
 from translation.translation import translate_text
 from summarization.summarization import text_summarization
-from langgraph.checkpoint.memory import InMemorySaver
 from dotenv import load_dotenv, find_dotenv
-import asyncio
-from typing import List, Dict, Any
 import os
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from langgraph.prebuilt import create_react_agent
+from langchain_core.messages.utils import trim_messages
+from langchain_core.messages.utils import count_tokens_approximately
+from fastapi.responses import JSONResponse
+from schema.schmas import QueryRequest
+from prompts.prompts import SYS_PROMPT_SUPERVISOR_AGENT
 
-load_dotenv("../.env")
+load_dotenv(find_dotenv())
 
-# PostgreSQL checkpointer import as per official documentation
-# from langgraph.checkpoint.postgres import PostgresSaver
 
-# Database configuration
-# DB_URI = f"postgresql://{os.getenv('PG_USER_NAME')}:{os.getenv('PG_PASSWORD')}@{os.getenv('PG_HOST')}:{os.getenv('PG_PORT')}/{os.getenv('PG_NAME')}"
+# Create router instead of FastAPI app
+chatbot_agent = APIRouter(tags=["Chat Bot Agent"])
 
-import aiosqlite
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
-# Global memory instance - shared across all requests
-GLOBAL_MEMORY = None
-
-async def get_memory():
-    """Create and return AsyncSqliteSaver instance - only create once"""
-    global GLOBAL_MEMORY
-    if GLOBAL_MEMORY is None:
-        conn = await aiosqlite.connect("agent_memory.db")  # Use persistent file instead of :memory:
-        GLOBAL_MEMORY = AsyncSqliteSaver(conn)
-    return GLOBAL_MEMORY
-
-app = FastAPI(title="Supervisor Agent API", description="API for knowledge base queries, translation, and summarization")
-
-class QueryRequest(BaseModel):
-    user_id: str
-    chatbot_id: str
-    query: str
-
-class MessageResponse(BaseModel):
-    role: str
-    content: str
-    type: str
-
-class QueryResponse(BaseModel):
-    response_text: str
-
-async def create_agent_graph(user_id: str, chatbot_id: str):
-    """Create an agent graph with the specified user_id and chatbot_id"""
-    
-    # Create KnowledgeBase instance with provided parameters
-    get_knowledge_base = KnowledgeBase(chatbot_id=chatbot_id, user_id=user_id)
-    
-    # Define tools
-    tools = [translate_text, text_summarization, get_knowledge_base.get_knowledge_base]
-    llm_with_tools = ChatOpenAI(model="gpt-4o-mini", temperature=0).bind_tools(tools)
-
-    # System message
-    sys_msg = SystemMessage(content="""You are a helpful AI assistant with access to several tools:
-
-1. Knowledge Base (get_knowledge_base):
-   - Use this tool for any user questions requiring factual information
-   - When user ask any question and you thought you cannot answer,please use this tool to get the knowledge base answer.
-   - Return knowledge base answers exactly as provided without modifications
-
-2. Translation (translate_text):
-   - Use this when users request text translation
-   - Clearly indicate the source and target languages
-   - Maintain the original meaning and context
-
-3. Summarization (text_summarization):
-   - Use this when users request text summarization
-   - Preserve key points while condensing the content
-   - Indicate when summarization is being performed
-
-Guidelines:
-- Always use the most appropriate tool for the task
-- If a request is unclear, ask for clarification
-- Maintain a professional and helpful tone
-- Never make up information - rely on the tools provided
-
-For each response:
-1. Identify the appropriate tool
-2. Apply the tool correctly
-3. Present results clearly""")
-
-    # Node
-    async def assistant(state: MessagesState):
-       return {"messages": [await llm_with_tools.ainvoke([sys_msg] + state["messages"])]}
-
-    # Graph
-    builder = StateGraph(MessagesState)
-
-    # Define nodes: these do the work
-    builder.add_node("assistant", assistant)
-    builder.add_node("tools", ToolNode(tools))
-
-    # Define edges: these determine how the control flow moves
-    builder.add_edge(START, "assistant")
-    builder.add_conditional_edges(
-        "assistant",
-        tools_condition,
+def pre_model_hook(state):
+    trimmed_messages = trim_messages(
+        state["messages"],
+        strategy="last",
+        token_counter=count_tokens_approximately,
+        max_tokens=50000,
+        start_on="human",
+        end_on=("human", "tool"),
     )
-    builder.add_edge("tools", "assistant")
-    
-    # Get the shared memory instance
-    memory = await get_memory()
-    
-    # Compile and return the graph
-    return builder.compile(checkpointer=memory)
+    return {"llm_input_messages": trimmed_messages}
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize memory on startup"""
-    await get_memory()
 
-@app.post("/query")
-async def process_query(request: QueryRequest, response_model=QueryResponse):
-    """
-    Process a query using the supervisor agent with specified user_id and chatbot_id
-    """
+@chatbot_agent.post("/chat-bot")
+async def _chatbot_agent(request: QueryRequest):
+    """Create an agent graph with the specified user_id and chatbot_id"""
+    query = request.query
+    user_id = request.user_id
+    chatbot_id = request.chatbot_id
+
     try:
-        # Create agent graph with the provided user_id and chatbot_id
-        react_graph = await create_agent_graph(request.user_id, request.chatbot_id)
-        
-        # Process the query with thread_id for conversation continuity
-        messages = [HumanMessage(content=request.query)]
-        config = {"configurable": {"thread_id": f"{request.user_id}_{request.chatbot_id}"}}
-        result = await react_graph.ainvoke({"messages": messages}, config=config)
-        
-        return QueryResponse(response_text=result.get("messages")[-1].content)
-        
+        # Create KnowledgeBase instance with provided parameters
+        get_knowledge_base = KnowledgeBase(chatbot_id=chatbot_id, user_id=user_id)
+
+        # Define tools
+        tools = [
+            translate_text,
+            text_summarization,
+            get_knowledge_base.get_knowledge_base,
+        ]
+        llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0.5)
+
+
+
+        config = {"configurable": {"thread_id": f"{user_id}"}}
+
+        # DB_URI = os.getenv("pgvector_connection")
+        DB_URI = f"postgresql://{os.getenv('PG_USER_NAME')}:{os.getenv('PG_PASSWORD')}@{os.getenv('PG_HOST')}:{os.getenv('PG_PORT')}/{os.getenv('PG_NAME')}?sslmode=require&connect_timeout=300"
+
+        if not DB_URI:
+            raise ValueError("pgvector_connection environment variable is required")
+        async with AsyncPostgresSaver.from_conn_string(DB_URI) as checkpointer:
+            # await checkpointer.setup()
+            agent = create_react_agent(
+                pre_model_hook=pre_model_hook,
+                model=llm,
+                tools=tools,
+                prompt=SYS_PROMPT_SUPERVISOR_AGENT,
+                checkpointer=checkpointer,
+            )
+
+            ai_message = ""
+            first_message = True
+            async for message in agent.astream(
+                {"messages": [{"role": "user", "content": query}]}, config
+            ):
+                response = message.get("agent")
+                if response:
+                    content = response.get("messages", [])[0].content
+                    if first_message:
+                        ai_message += content
+                        first_message = False
+                    else:
+                        ai_message += "\n\n" + content
+
+            return JSONResponse(content={"response": ai_message}, status_code=200)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing query: {str(e)}")
-
-@app.get("/health")
-async def health_check():
-    """Health check endpoint"""
-    return {"status": "healthy", "message": "Supervisor Agent API is running"}
-
-@app.get("/")
-async def root():
-    """Root endpoint with API information"""
-    return {
-        "message": "Welcome to Supervisor Agent API",
-        "endpoints": {
-            "POST /query": "Process a query with user_id, chatbot_id, and query",
-            "GET /health": "Health check",
-            "GET /docs": "API documentation"
-        }
-    }
-
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)

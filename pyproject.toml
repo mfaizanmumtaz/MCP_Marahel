@@ -56,4 +56,5 @@ dependencies = [
     "langgraph-checkpoint-postgres>=2.0.21",
     "psycopg[binary,pool]>=3.2.9",
     "langgraph-checkpoint-sqlite>=2.0.10",
+    "ruff>=0.12.2",
 ]

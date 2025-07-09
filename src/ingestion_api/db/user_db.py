@@ -1,6 +1,6 @@
 from sqlalchemy import Column, String, Text, DateTime
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.dialects.postgresql import TEXT
 from urllib.parse import quote
 import uuid
@@ -9,6 +9,9 @@ from datetime import datetime
 from sqlalchemy import LargeBinary
 import asyncio
 import sys
+from dotenv import load_dotenv, find_dotenv
+
+load_dotenv(find_dotenv())
 
 # Fix for Windows asyncio compatibility with psycopg
 if sys.platform.startswith("win"):
@@ -17,12 +20,12 @@ if sys.platform.startswith("win"):
 # Database URL configuration
 DATABASE_URL = (
     f"postgresql+asyncpg://{os.getenv('PG_USER_NAME')}:{quote(os.getenv('PG_PASSWORD', ''))}@"
-    f"{os.getenv('PG_HOST')}:{os.getenv('PG_PORT')}/{os.getenv('PG_NAME')}"
+    f"{os.getenv('PG_HOST')}:{int(os.getenv('PG_PORT', '5432'))}/{os.getenv('PG_NAME')}"
 )
 
 # Async engine and session setup
 engine = create_async_engine(DATABASE_URL, echo=True)
-async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+async_session = async_sessionmaker(bind=engine, expire_on_commit=False)
 Base = declarative_base()
 
 
@@ -78,12 +81,14 @@ class UserFile(Base):
     session_id = Column(String, nullable=True)
 
 
-class GoogleSheet(Base):
-    __tablename__ = "google_sheets_dev_2"
-    uuid = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    chatbot_id = Column(String, nullable=False, unique=True)
-    content = Column(LargeBinary, nullable=False)
-    uploaded_at = Column(DateTime, default=datetime.utcnow)
+class LoanRecord(Base):
+    __tablename__ = "loan_records_dev_2"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    chatbot_id = Column(String, nullable=False)
+    phone_number = Column(String, nullable=False)
+    loan_record_data = Column(Text, nullable=False)  # Store the raw string data
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 # async def init_db():

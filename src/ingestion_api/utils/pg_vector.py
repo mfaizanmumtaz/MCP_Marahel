@@ -1,11 +1,11 @@
 from langchain_postgres.vectorstores import PGVector
 import os
-from rag_cag_agent.database.connection import async_session
+from ingestion_api.db.postgres_connection import async_session
 from sqlalchemy import text
 
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 
-load_dotenv()
+load_dotenv(find_dotenv())
 
 
 async def pg_insertion(text, embeddings, collection_name):
