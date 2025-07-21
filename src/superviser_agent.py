@@ -51,8 +51,6 @@ async def _chatbot_agent(request: QueryRequest):
         ]
         llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0.5)
 
-
-
         config = {"configurable": {"thread_id": f"{user_id}"}}
 
         # DB_URI = os.getenv("pgvector_connection")

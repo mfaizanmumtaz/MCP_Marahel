@@ -1,4 +1,5 @@
 import json
+import os
 from sqlalchemy import select
 from langchain_postgres.vectorstores import PGVector
 
@@ -20,7 +21,8 @@ from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 from fastapi import HTTPException
 from rag_cag_agent.config.settings import settings
-
+from dotenv import load_dotenv
+load_dotenv()
 
 class KnowledgeBase:
     def __init__(self, chatbot_id: str, user_id: str):
@@ -111,7 +113,7 @@ class KnowledgeBase:
                 vector_store = PGVector(
                     embeddings=embeddings,
                     collection_name=collection_,
-                    connection=settings.PGVECTOR_CONNECTION,
+                    connection=os.getenv("pgvector_connection"),
                     use_jsonb=True,
                     async_mode=True,
                 )
