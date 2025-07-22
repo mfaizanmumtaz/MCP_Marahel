@@ -6,9 +6,6 @@ from ingestion_api.api.router import ingestion_api
 from rag_cag_agent.cag_rag_mcp import KnowledgeBase
 
 
-
-
-
 # Fix for Windows asyncio compatibility with psycopg
 if sys.platform.startswith("win"):
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())

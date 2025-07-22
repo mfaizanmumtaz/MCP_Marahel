@@ -18,7 +18,7 @@ async def pg_insertion(text, embeddings, collection_name):
     )
     _object = await vector_store.aadd_documents(text)
 
-    print("insertion successful")
+    # print("insertion successful")
     return _object
 
 

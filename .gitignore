@@ -10,3 +10,5 @@ log/
 *.pyzw
 *.pyzwz
 *.pyzwzw
+qa_testing/
+uv.lock

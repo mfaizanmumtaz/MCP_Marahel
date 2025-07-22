@@ -57,4 +57,7 @@ dependencies = [
     "psycopg[binary,pool]>=3.2.9",
     "langgraph-checkpoint-sqlite>=2.0.10",
     "ruff>=0.12.2",
+    "pyodbc>=5.2.0",
+    "pymssql>=2.3.7",
+    "streamlit>=1.47.0",
 ]
