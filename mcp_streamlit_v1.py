@@ -7,6 +7,11 @@ from datetime import datetime
 import json
 import threading
 import time
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Add project source to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -64,6 +69,8 @@ def run_agent_streaming(query: str, user_id: str, chatbot_id: str, result_contai
     """Run agent streaming in a separate thread"""
     async def stream_agent():
         try:
+            logger.info(f"Starting agent streaming for user_id: {user_id}, chatbot_id: {chatbot_id}")
+            
             # Create KnowledgeBase instance
             get_knowledge_base = KnowledgeBase(chatbot_id=chatbot_id, user_id=user_id)
             
@@ -79,11 +86,21 @@ def run_agent_streaming(query: str, user_id: str, chatbot_id: str, result_contai
             
             config = {"configurable": {"thread_id": f"{user_id}"}}
             
-            # Database connection
+            # Database connection - validate environment variables first
+            required_env_vars = ['PG_USER_NAME', 'PG_PASSWORD', 'PG_HOST', 'PG_PORT', 'PG_NAME']
+            missing_vars = [var for var in required_env_vars if not os.getenv(var)]
+            
+            logger.info(f"Environment check - Missing vars: {missing_vars}")
+            
+            if missing_vars:
+                raise ValueError(f"Missing required environment variables: {missing_vars}")
+            
             DB_URI = f"postgresql://{os.getenv('PG_USER_NAME')}:{os.getenv('PG_PASSWORD')}@{os.getenv('PG_HOST')}:{os.getenv('PG_PORT')}/{os.getenv('PG_NAME')}?sslmode=require&connect_timeout=300"
             
+            logger.info(f"Database URI constructed (password masked): postgresql://{os.getenv('PG_USER_NAME')}:***@{os.getenv('PG_HOST')}:{os.getenv('PG_PORT')}/{os.getenv('PG_NAME')}")
+            
             if not DB_URI or "None" in DB_URI:
-                raise ValueError("Database connection environment variables are required")
+                raise ValueError(f"Database connection string contains None values: {DB_URI}")
                 
             async with AsyncPostgresSaver.from_conn_string(DB_URI) as checkpointer:
                 # Create the react agent
@@ -96,42 +113,54 @@ def run_agent_streaming(query: str, user_id: str, chatbot_id: str, result_contai
                 )
                 
                 # Stream responses
+                logger.info("Starting agent stream processing")
                 async for message in agent.astream(
                     {"messages": [{"role": "user", "content": query}]}, config
                 ):
+                    logger.debug(f"Received message: {type(message)}, keys: {list(message.keys()) if isinstance(message, dict) else 'Not a dict'}")
+                    
+                    # Safely check if message is a dictionary
+                    if not isinstance(message, dict) or message is None:
+                        logger.warning(f"Skipping invalid message: {type(message)}")
+                        continue
+                        
                     # Process different types of messages
-                    if "agent" in message and message["agent"]:
+                    if "agent" in message and message["agent"] is not None:
                         agent_data = message["agent"]
-                        messages = agent_data.get("messages", [])
-                        for msg in messages:
-                            if hasattr(msg, 'content') and msg.content:
-                                result_container.agent_responses.append({
-                                    "content": msg.content,
-                                    "timestamp": datetime.now().strftime("%H:%M:%S")
-                                })
-                                result_container.steps.append({
-                                    "type": "agent_response",
-                                    "content": msg.content,
-                                    "timestamp": datetime.now().strftime("%H:%M:%S")
-                                })
+                        if isinstance(agent_data, dict):
+                            messages = agent_data.get("messages", [])
+                            if isinstance(messages, list):
+                                for msg in messages:
+                                    if hasattr(msg, 'content') and msg.content:
+                                        result_container.agent_responses.append({
+                                            "content": msg.content,
+                                            "timestamp": datetime.now().strftime("%H:%M:%S")
+                                        })
+                                        result_container.steps.append({
+                                            "type": "agent_response",
+                                            "content": msg.content,
+                                            "timestamp": datetime.now().strftime("%H:%M:%S")
+                                        })
                                 
-                    elif "tools" in message and message["tools"]:
+                    elif "tools" in message and message["tools"] is not None:
                         tool_data = message["tools"]
-                        tool_messages = tool_data.get("messages", [])
-                        for tool_msg in tool_messages:
-                            if hasattr(tool_msg, 'name'):
-                                tool_info = {
-                                    "name": tool_msg.name,
-                                    "content": str(tool_msg.content) if hasattr(tool_msg, 'content') else "",
-                                    "timestamp": datetime.now().strftime("%H:%M:%S")
-                                }
-                                result_container.tool_calls.append(tool_info)
-                                result_container.steps.append({
-                                    "type": "tool_execution",
-                                    "tool_name": tool_msg.name,
-                                    "content": str(tool_msg.content) if hasattr(tool_msg, 'content') else "",
-                                    "timestamp": datetime.now().strftime("%H:%M:%S")
-                                })
+                        if isinstance(tool_data, dict):
+                            tool_messages = tool_data.get("messages", [])
+                            if isinstance(tool_messages, list):
+                                for tool_msg in tool_messages:
+                                    if hasattr(tool_msg, 'name'):
+                                        tool_info = {
+                                            "name": tool_msg.name,
+                                            "content": str(tool_msg.content) if hasattr(tool_msg, 'content') else "",
+                                            "timestamp": datetime.now().strftime("%H:%M:%S")
+                                        }
+                                        result_container.tool_calls.append(tool_info)
+                                        result_container.steps.append({
+                                            "type": "tool_execution",
+                                            "tool_name": tool_msg.name,
+                                            "content": str(tool_msg.content) if hasattr(tool_msg, 'content') else "",
+                                            "timestamp": datetime.now().strftime("%H:%M:%S")
+                                        })
                 
                 result_container.is_complete = True
                     
@@ -153,16 +182,16 @@ def display_streaming_results(result_container: StreamingResult, status_placehol
     
     # Show current status
     if result_container.errors:
-        status_placeholder.error(f"❌ {result_container.errors[-1]}")
+        status_placeholder.error(f"{result_container.errors[-1]}")
     elif result_container.is_complete:
-        status_placeholder.success("✅ Query processed successfully!")
+        status_placeholder.success("Query processed successfully!")
     else:
-        status_placeholder.info("🔄 Processing your query...")
+        status_placeholder.info("Processing your query...")
     
     # Display steps
     with steps_container:
         if result_container.steps:
-            st.markdown("**🔧 Processing Steps:**")
+            st.markdown("**Processing Steps:**")
             for i, step in enumerate(result_container.steps):
                 if step["type"] == "tool_execution":
                     st.markdown(f"**Step {i+1}:** Tool Execution - `{step['tool_name']}` at {step['timestamp']}")
@@ -175,7 +204,7 @@ def display_streaming_results(result_container: StreamingResult, status_placehol
     # Display final response
     with response_container:
         if result_container.agent_responses:
-            st.markdown("**🤖 Agent Response:**")
+            st.markdown("**Agent Response:**")
             for response in result_container.agent_responses:
                 st.markdown(f"*{response['timestamp']}:*")
                 st.markdown(response["content"])
@@ -185,12 +214,12 @@ def main():
     """Main Streamlit application"""
     
     # Title and description
-    st.title("🤖 MCP Agent Real-time Streaming")
+    st.title("MCP Agent Real-time Streaming")
     st.markdown("**Real-time streaming interface for the MCP Agent with intermediate steps visualization**")
     
     # Sidebar for configuration
     with st.sidebar:
-        st.header("⚙️ Configuration")
+        st.header("Configuration")
         
         # User inputs
         user_id = st.text_input(
@@ -205,9 +234,9 @@ def main():
             help="Chatbot instance identifier"
         )
         
-        # Auto-refresh option
-        auto_refresh = st.checkbox("Auto-refresh during streaming", value=True)
-        refresh_interval = st.slider("Refresh interval (seconds)", 0.5, 5.0, 1.0, 0.5)
+        # Auto-refresh settings (hardcoded)
+        auto_refresh = True
+        refresh_interval = 1.0
         
         # Environment status
         # st.header("🔧 Environment Status")
@@ -230,7 +259,7 @@ def main():
     col1, col2 = st.columns([1, 1])
     
     with col1:
-        st.header("💬 Query Input")
+        st.header("Query Input")
         
         # Query input
         query = st.text_area(
@@ -242,9 +271,9 @@ def main():
         # Buttons
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
-            submit_button = st.button("🚀 Submit Query", type="primary", use_container_width=True)
+            submit_button = st.button("Submit Query", type="primary", use_container_width=True)
         with col_btn2:
-            if st.button("🗑️ Clear History", use_container_width=True):
+            if st.button("Clear History", use_container_width=True):
                 st.session_state.chat_history = []
                 st.session_state.streaming_result = None
                 st.session_state.streaming_thread = None
@@ -252,7 +281,7 @@ def main():
         
         # Display chat history
         if st.session_state.chat_history:
-            st.header("📜 Chat History")
+            st.header("Chat History")
             for i, chat_item in enumerate(reversed(st.session_state.chat_history[-5:])):  # Show last 5
                 with st.expander(f"{chat_item['role'].title()} - {chat_item['timestamp']}", expanded=False):
                     if chat_item['role'] == 'user':
@@ -265,7 +294,7 @@ def main():
                                 st.markdown(f"- {tool['name']}")
     
     with col2:
-        st.header("📊 Real-time Streaming Results")
+        st.header("Real-time Streaming Results")
         
         # Create containers for display
         status_placeholder = st.empty()
@@ -291,7 +320,7 @@ def main():
             st.session_state.streaming_thread.start()
             
             # Display user query
-            st.markdown(f"**👤 You ({datetime.now().strftime('%H:%M:%S')}):**")
+            st.markdown(f"**You ({datetime.now().strftime('%H:%M:%S')}):**")
             st.markdown(query)
             st.divider()
         
