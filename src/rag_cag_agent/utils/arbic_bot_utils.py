@@ -27,10 +27,10 @@ from rag_cag_agent.utils.translation_utils import translate_text
 from langdetect import detect, DetectorFactory
 
 # Optional import for Qdrant - fallback if not available
-try:
-    from langchain_qdrant.qdrant import QdrantVectorStore
-except ImportError:
-    QdrantVectorStore = None
+# try:
+from langchain_qdrant.qdrant import QdrantVectorStore
+# except ImportError:
+    # QdrantVectorStore = None
 
 from openai import OpenAI
 import aiofiles

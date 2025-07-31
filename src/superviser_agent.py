@@ -1,8 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from rag_cag_agent.cag_rag_mcp import KnowledgeBase
 from langchain_openai import ChatOpenAI
-from translation.translation import translate_text
-from summarization.summarization import text_summarization
 from dotenv import load_dotenv, find_dotenv
 import os
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
@@ -11,10 +8,10 @@ from langchain_core.messages.utils import trim_messages
 from langchain_core.messages.utils import count_tokens_approximately
 from fastapi.responses import JSONResponse
 from schema.schmas import QueryRequest
+from langchain_mcp_adapters.client import MultiServerMCPClient
 from prompts.prompts import SYS_PROMPT_SUPERVISOR_AGENT
 
 load_dotenv(find_dotenv())
-
 
 # Create router instead of FastAPI app
 chatbot_agent = APIRouter(tags=["Chat Bot Agent"])
@@ -40,15 +37,30 @@ async def _chatbot_agent(request: QueryRequest):
     chatbot_id = request.chatbot_id
 
     try:
-        # Create KnowledgeBase instance with provided parameters
-        get_knowledge_base = KnowledgeBase(chatbot_id=chatbot_id, user_id=user_id)
 
-        # Define tools
-        tools = [
-            translate_text,
-            text_summarization,
-            get_knowledge_base.get_knowledge_base,
-        ]
+        
+        # Create MCP clients - authenticated only for KnowledgeBase
+        try:
+            translation_summarization_client = MultiServerMCPClient(
+                {
+                    "Translation": {
+                        "url": "http://127.0.0.1:8001/mcp",
+                        "transport": "streamable_http",
+                        "headers": {
+                            "user_id": chatbot_id,
+                            "chatbot_id": chatbot_id
+                        }
+                    }}
+            )
+            
+
+            # Get tools from both clients
+            tools = await translation_summarization_client.get_tools()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error fetching tools please make sure your mcp server is runing.")
+        
+        # knowledge_base_tools = await knowledge_base_client.get_tools()
+
         llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0.5)
 
         config = {"configurable": {"thread_id": f"{user_id}"}}

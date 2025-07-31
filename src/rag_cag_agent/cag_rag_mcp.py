@@ -21,38 +21,52 @@ from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 from fastapi import HTTPException
 from rag_cag_agent.config.settings import settings
+from fastmcp import FastMCP
+from fastmcp.server.dependencies import get_access_token, AccessToken
+from fastmcp.server.dependencies import get_http_headers
 from dotenv import load_dotenv
 load_dotenv()
 
-class KnowledgeBase:
-    def __init__(self, chatbot_id: str, user_id: str):
-        self.chatbot_id = chatbot_id
-        self.user_id = user_id
+
+# Initialize FastMCP without auth parameter since we handle JWT manually
+mcp = FastMCP("KnowledgeBase")
+
+@mcp.tool()
+async def get_knowledge_base(query_user: str):
+    """Tool to search through the stored knowledge base to find the most relevant information 
+    that matches the user's query. This tool uses advanced embedding models to find semantically 
+    similar content and handles both English and Arabic queries. It takes into account the user's 
+    query,chat history in stand alone and returns well-formatted responses. Always use this tool when you cannot answer a question with your other existing tools.when user ask any question and you thought you cannot answer,please use this tool to get the knowledge base answer.just put the same user query in the tool call and you will get the appropriate answer.
+    
+    Args:
+        query_user (str): The user's question or query to search for in the knowledge base. 
+                        Examples: 'What is this document about?', 'Tell me about the company policies', 
+                        'How does this system work?'
+    
+    Returns:
+        Relevant final answer from the knowledge base that matches the user's query.
+    """
+    
+    try:
+        # Get user context from token
+        header = get_http_headers(include_all=True) 
+        user_id = header.get("user_id")
+        chatbot_id = header.get("chatbot_id")
         
-    async def get_knowledge_base(self, query_user: str):
-        """Tool to search through the stored knowledge base to find the most relevant information 
-        that matches the user's query. This tool uses advanced embedding models to find semantically 
-        similar content and handles both English and Arabic queries. It takes into account the user's 
-        chat history and returns well-formatted responses. Always use this tool when you cannot answer a question with your other existing tools.when user ask any question and you thought you cannot answer,please use this tool to get the knowledge base answer.just put the same user query in the tool call and you will get the appropriate answer.
+        if not user_id or not chatbot_id:
+            return {"error": "Missing user_id or chatbot_id in token", "status": "error"}
         
-        Args:
-            query_user (str): The user's question or query to search for in the knowledge base. 
-                            Examples: 'What is this document about?', 'Tell me about the company policies', 
-                            'How does this system work?'
-        
-        Returns:
-            Relevant final answer from the knowledge base that matches the user's query.
-        """
+        print(f"Knowledge base request from user: {user_id}, chatbot: {chatbot_id}")
 
         # Validate chatbot_id
-        if not validate_uuid(self.chatbot_id):
+        if not validate_uuid(chatbot_id):
             return {"error": "Invalid chatbot_id uuid format.", "status": "error"}
 
         db_generator = get_db()
         db = await db_generator.__anext__()
         try:
             # Fetch collection metadata
-            stmt = select(Collections_Dev).filter_by(chatbot_id=self.chatbot_id)
+            stmt = select(Collections_Dev).filter_by(chatbot_id=chatbot_id)
             result = await db.execute(stmt)
             collection = result.scalar_one_or_none()
 
@@ -64,7 +78,7 @@ class KnowledgeBase:
             # Get chat history
             history_query = (
                 select(ChatHistory)
-                .filter_by(chatbot_id=self.chatbot_id, user_id=self.user_id)
+                .filter_by(chatbot_id=chatbot_id, user_id=user_id)
                 .order_by(ChatHistory.id.desc())
                 .limit(30)
             )
@@ -134,13 +148,13 @@ class KnowledgeBase:
 
             elif vectorstore_name == "postgres":
                 # Fetch data with chatbot_id
-                stmt = select(RawData).filter(RawData.chatbot_id == self.chatbot_id)
+                stmt = select(RawData).filter(RawData.chatbot_id == chatbot_id)
                 result = await db.execute(stmt)
                 raw_records = result.scalars().all()
 
                 if not raw_records:
                     return {
-                        "error": f"No data found for this chatbot_id: {self.chatbot_id}",
+                        "error": f"No data found for this chatbot_id: {chatbot_id}",
                         "status": "error",
                     }
 
@@ -162,10 +176,12 @@ class KnowledgeBase:
                 }
 
             # Save history
-            await self._save_history_in_background(
+            await _save_history_in_background(
                 query_user,
                 results,
                 collection.uuid,
+                chatbot_id,
+                user_id
             )
 
             # Commit the session
@@ -182,27 +198,33 @@ class KnowledgeBase:
             return {"error": f"An error occurred: {str(ex)}", "status": "error"}
         finally:
             await db.close()
+    
+    except Exception as e:
+        return {"error": f"Authentication error: {str(e)}", "status": "error"}
 
-    async def _save_history_in_background(
-        self, query: str, response: str, collection_uuid: str
-    ):
-        db_generator = get_db()
-        db = await db_generator.__anext__()
-        try:
-            new_history = ChatHistory(
-                chatbot_id=self.chatbot_id,
-                user_id=self.user_id,
-                query=query,
-                response=response,
-                collection_uuid=collection_uuid,
-            )
-            db.add(new_history)
-            await db.commit()
-        except Exception as e:
-            await db.rollback()
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to save chat history: {str(e)}",
-            )
-        finally:
-            await db.close()
+async def _save_history_in_background(
+    query: str, response: str, collection_uuid: str, chatbot_id: str, user_id: str
+):
+    db_generator = get_db()
+    db = await db_generator.__anext__()
+    try:
+        new_history = ChatHistory(
+            chatbot_id=chatbot_id,
+            user_id=user_id,
+            query=query,
+            response=response,
+            collection_uuid=collection_uuid,
+        )
+        db.add(new_history)
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to save chat history: {str(e)}",
+        )
+    finally:
+        await db.close()
+
+if __name__ == "__main__":
+    mcp.run(transport="streamable-http", port=8003)

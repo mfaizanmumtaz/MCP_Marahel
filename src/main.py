@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 import asyncio
 import sys
+import os
 from superviser_agent import chatbot_agent
 from ingestion_api.api.router import ingestion_api
 # from rag_cag_agent.cag_rag_mcp import KnowledgeBase
@@ -12,6 +13,10 @@ if sys.platform.startswith("win"):
 
 # get_knowledge_base = KnowledgeBase(chatbot_id="1568de36-660b-11f0-9fe2-0242ac120002", user_id="asfddsafrsdf")
 
+os.environ["LANGSMITH_TRACING"]="true"
+os.environ["LANGSMITH_ENDPOINT"]="https://api.smith.langchain.com"
+os.environ["LANGSMITH_API_KEY"]="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"
+os.environ["LANGSMITH_PROJECT"]="document_translation_chatbot"
 
 app = FastAPI(
     title="Supervisor Agent API",
