@@ -1,16 +1,15 @@
 import streamlit as st
 import requests
 import uuid
-import json
-import time
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict
 import os
 import sys
 
 # Add project source to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
-src_path = os.path.join(current_dir, "src")
+project_root = os.path.dirname(current_dir)
+src_path = os.path.join(project_root, "src")
 if src_path not in sys.path:
     sys.path.insert(0, src_path)
 

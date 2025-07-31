@@ -22,7 +22,6 @@ from langchain_anthropic import ChatAnthropic
 from fastapi import HTTPException
 from rag_cag_agent.config.settings import settings
 from fastmcp import FastMCP
-from fastmcp.server.dependencies import get_access_token, AccessToken
 from fastmcp.server.dependencies import get_http_headers
 from dotenv import load_dotenv
 load_dotenv()

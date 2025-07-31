@@ -56,8 +56,8 @@ async def _chatbot_agent(request: QueryRequest):
 
             # Get tools from both clients
             tools = await translation_summarization_client.get_tools()
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error fetching tools please make sure your mcp server is runing.")
+        except Exception:
+            raise HTTPException(status_code=500, detail="Error fetching tools please make sure your mcp server is runing.")
         
         # knowledge_base_tools = await knowledge_base_client.get_tools()
 

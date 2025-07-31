@@ -12,3 +12,7 @@ log/
 *.pyzwzw
 qa_testing/
 uv.lock
+.ruff_cache
+__pycache__/
+test.ipynb
+uv.lock

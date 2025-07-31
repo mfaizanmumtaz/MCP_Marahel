@@ -1,22 +1,29 @@
 #!/usr/bin/env python3
+"""
+Runner script for the comprehensive Streamlit application
+"""
 
 import subprocess
 import sys
 import os
 from pathlib import Path
 
-def run_streamlit_app():
+def main():
     """Run the comprehensive Streamlit application"""
-    
-    # Get the current directory
+    # Get the project root directory
     current_dir = Path(__file__).parent.absolute()
-    app_file = current_dir / "streamlit_comprehensive_app.py"
+    project_root = current_dir.parent
+    app_file = project_root / "apps" / "streamlit_comprehensive.py"
     
+    # Check if the file exists
     if not app_file.exists():
         print(f"Error: {app_file} not found!")
         sys.exit(1)
     
-    print("Starting MCP Comprehensive Streamlit Application...")
+    # Change to project root directory
+    os.chdir(project_root)
+    
+    print("Starting Comprehensive Streamlit Application...")
     print(f"App file: {app_file}")
     print("=" * 50)
     
@@ -45,6 +52,9 @@ def run_streamlit_app():
     except KeyboardInterrupt:
         print("\nApplication stopped by user")
         sys.exit(0)
+    except FileNotFoundError:
+        print("Error: Streamlit not found. Please install it using: pip install streamlit")
+        sys.exit(1)
 
 if __name__ == "__main__":
-    run_streamlit_app() 
+    main()
