@@ -6,6 +6,7 @@ load_dotenv(find_dotenv())
 
 mcp = FastMCP("Summarization")
 
+
 @mcp.tool()
 async def text_summarization(text: str) -> str:
     """Summarize the given text.
@@ -46,6 +47,7 @@ async def text_summarization(text: str) -> str:
 
     except Exception as e:
         return f"Error during summarization: {str(e)}"
+
 
 if __name__ == "__main__":
     mcp.run(transport="http")

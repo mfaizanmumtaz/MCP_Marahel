@@ -37,28 +37,26 @@ async def _chatbot_agent(request: QueryRequest):
     chatbot_id = request.chatbot_id
 
     try:
-
-        
         # Create MCP clients - authenticated only for KnowledgeBase
         try:
             translation_summarization_client = MultiServerMCPClient(
                 {
-                    "Translation": {
+                    "Services": {
                         "url": "http://127.0.0.1:8001/mcp",
                         "transport": "streamable_http",
-                        "headers": {
-                            "user_id": chatbot_id,
-                            "chatbot_id": chatbot_id
-                        }
-                    }}
+                        "headers": {"user_id": user_id, "chatbot_id": chatbot_id},
+                    }
+                }
             )
-            
 
             # Get tools from both clients
             tools = await translation_summarization_client.get_tools()
         except Exception:
-            raise HTTPException(status_code=500, detail="Error fetching tools please make sure your mcp server is runing.")
-        
+            raise HTTPException(
+                status_code=500,
+                detail="Error fetching tools please make sure your mcp server is runing.",
+            )
+
         # knowledge_base_tools = await knowledge_base_client.get_tools()
 
         llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0.5)

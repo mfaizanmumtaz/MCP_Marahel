@@ -24,37 +24,43 @@ from rag_cag_agent.config.settings import settings
 from fastmcp import FastMCP
 from fastmcp.server.dependencies import get_http_headers
 from dotenv import load_dotenv
+
 load_dotenv()
 
 
 # Initialize FastMCP without auth parameter since we handle JWT manually
 mcp = FastMCP("KnowledgeBase")
 
+
 @mcp.tool()
 async def get_knowledge_base(query_user: str):
-    """Tool to search through the stored knowledge base to find the most relevant information 
-    that matches the user's query. This tool uses advanced embedding models to find semantically 
-    similar content and handles both English and Arabic queries. It takes into account the user's 
+    """Tool to search through the stored knowledge base to find the most relevant information
+    that matches the user's query. This tool uses advanced embedding models to find semantically
+    similar content and handles both English and Arabic queries. It takes into account the user's
     query,chat history in stand alone and returns well-formatted responses. Always use this tool when you cannot answer a question with your other existing tools.when user ask any question and you thought you cannot answer,please use this tool to get the knowledge base answer.just put the same user query in the tool call and you will get the appropriate answer.
-    
+
     Args:
-        query_user (str): The user's question or query to search for in the knowledge base. 
-                        Examples: 'What is this document about?', 'Tell me about the company policies', 
+        query_user (str): The user's question or query to search for in the knowledge base.
+                        Examples: 'What is this document about?', 'Tell me about the company policies',
                         'How does this system work?'
-    
+
     Returns:
         Relevant final answer from the knowledge base that matches the user's query.
     """
-    
+
     try:
         # Get user context from token
-        header = get_http_headers(include_all=True) 
+        header = get_http_headers(include_all=True)
+        print(header)
         user_id = header.get("user_id")
         chatbot_id = header.get("chatbot_id")
-        
+
         if not user_id or not chatbot_id:
-            return {"error": "Missing user_id or chatbot_id in token", "status": "error"}
-        
+            return {
+                "error": "Missing user_id or chatbot_id in token",
+                "status": "error",
+            }
+
         print(f"Knowledge base request from user: {user_id}, chatbot: {chatbot_id}")
 
         # Validate chatbot_id
@@ -107,8 +113,7 @@ async def get_knowledge_base(query_user: str):
             elif llm_type == "claude":
                 try:
                     llm_model = ChatAnthropic(
-                        model_name=settings.CLAUDE_MODEL,
-                        timeout=30
+                        model_name=settings.CLAUDE_MODEL, timeout=30
                     )
                 except Exception:
                     return {
@@ -176,11 +181,7 @@ async def get_knowledge_base(query_user: str):
 
             # Save history
             await _save_history_in_background(
-                query_user,
-                results,
-                collection.uuid,
-                chatbot_id,
-                user_id
+                query_user, results, collection.uuid, chatbot_id, user_id
             )
 
             # Commit the session
@@ -197,9 +198,10 @@ async def get_knowledge_base(query_user: str):
             return {"error": f"An error occurred: {str(ex)}", "status": "error"}
         finally:
             await db.close()
-    
+
     except Exception as e:
         return {"error": f"Authentication error: {str(e)}", "status": "error"}
+
 
 async def _save_history_in_background(
     query: str, response: str, collection_uuid: str, chatbot_id: str, user_id: str
@@ -224,6 +226,7 @@ async def _save_history_in_background(
         )
     finally:
         await db.close()
+
 
 if __name__ == "__main__":
     mcp.run(transport="streamable-http", port=8003)

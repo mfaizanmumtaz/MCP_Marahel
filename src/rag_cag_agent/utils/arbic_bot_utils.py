@@ -30,7 +30,7 @@ from langdetect import detect, DetectorFactory
 # try:
 from langchain_qdrant.qdrant import QdrantVectorStore
 # except ImportError:
-    # QdrantVectorStore = None
+# QdrantVectorStore = None
 
 from openai import OpenAI
 import aiofiles

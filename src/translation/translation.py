@@ -6,6 +6,7 @@ load_dotenv(find_dotenv())
 
 mcp = FastMCP("Translation")
 
+
 @mcp.tool()
 async def translate_text(text: str, target_language: str) -> str:
     """Translate the given text into the target language.
@@ -47,6 +48,7 @@ async def translate_text(text: str, target_language: str) -> str:
 
     except Exception as e:
         return f"Error during translation: {str(e)}"
+
 
 if __name__ == "__main__":
     mcp.run(transport="streamable-http")

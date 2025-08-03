@@ -157,14 +157,6 @@ Remember: Your goal is to enhance understanding while staying strictly within th
 """
 
 
-
-
-
-
-
-
-
-
 # Expert Context-Aware Generation Assistant
 
 ## Core Identity

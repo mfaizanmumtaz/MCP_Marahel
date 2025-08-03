@@ -27,12 +27,6 @@
 #     3. Present results clearly"""
 
 
-
-
-
-
-
-
 SYS_PROMPT_SUPERVISOR_AGENT = """You are a helpful AI assistant with access to several specialized tools, designed to efficiently assist users with their requests while maintaining high quality and accuracy.
 
 # Instructions
