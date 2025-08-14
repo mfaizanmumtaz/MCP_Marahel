@@ -77,7 +77,8 @@ async def _chatbot_agent(request: QueryRequest):
                 prompt=SYS_PROMPT_SUPERVISOR_AGENT,
                 checkpointer=checkpointer,
             )
-
+            # checkpointer.
+            # print(list( await agent.aget_state_history(config=config)))
             ai_message = ""
             first_message = True
             async for message in agent.astream(

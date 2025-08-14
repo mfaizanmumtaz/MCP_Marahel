@@ -1,0 +1,60 @@
+[project]
+name = "marahel-fastapi-service"
+version = "0.1.0"
+description = "FastAPI service for Marahel project"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    # Core FastAPI dependencies
+    "fastapi>=0.115.12",
+    "uvicorn>=0.34.2",
+    "python-multipart>=0.0.20",
+    "pydantic>=2.11.4",
+    "python-dotenv>=1.1.0",
+    "langchain_mcp_adapters",
+    # Database dependencies
+    "sqlalchemy>=2.0.40",
+    "psycopg2-binary>=2.9.10",
+    "asyncpg",
+    "pgvector>=0.3.6",
+    "alembic>=1.15.2",
+    "psycopg[binary,pool]>=3.2.9",
+    "psycopg-pool>=3.2.6",
+    
+    # File processing
+    "aiofiles",
+    "openpyxl>=3.1.5",
+    "pandas>=2.2.3",
+    "pymupdf>=1.25.5",
+    "pypdf>=5.4.0",
+    "pillow>=11.2.1",
+    
+    # AI/ML dependencies
+    "langchain>=0.3.24",
+    "langchain-core>=0.3.56",
+    "langchain-openai>=0.3.24",
+    "langchain-anthropic>=0.3.12",
+    "langchain-community>=0.3.23",
+    "langchain-text-splitters>=0.3.8",
+    "langchain-postgres>=0.0.13",
+    "langgraph>=0.4.8",
+    "langgraph-checkpoint-postgres>=2.0.21",
+    "openai>=1.76.2",
+    "anthropic>=0.50.0",
+    
+    # Vector databases
+    "qdrant-client>=1.14.2",
+    "langchain-qdrant>=0.2.0",
+    
+    # Utilities
+    "requests>=2.32.3",
+    "httpx>=0.28.1",
+    "aiohttp>=3.11.18",
+    "anyio>=4.9.0",
+    "filelock>=3.18.0",
+    "numpy>=2.2.5",
+    "langdetect>=1.0.9",
+    "async_timeout",
+    "python-jose>=3.5.0",
+    "jwt>=1.4.0",
+]

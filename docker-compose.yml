@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  mcp-servers:
+    build:
+      context: ./services/mcp_servers
+      dockerfile: Dockerfile
+    container_name: mcp-servers
+    ports:
+      - "9697:9697"
+    env_file:
+      - .env
+    networks:
+      - app-network
+
+
+  main-api:
+    build:
+      context: ./services/main_fastapi_api
+      dockerfile: Dockerfile
+    container_name: main-api
+    ports:
+      - "9696:9696"
+    environment:
+      - MCP_SERVER_URL=http://mcp-servers:9697/mcp
+    env_file:
+      - .env
+    networks:
+      - app-network
+    depends_on:
+      - mcp-servers
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

@@ -6,7 +6,6 @@ from typing import Dict
 import os
 import sys
 import asyncio
-import json
 from fastmcp import Client
 
 # Add project source to path
@@ -26,10 +25,7 @@ API_BASE_URL = "http://localhost:8000/api"
 
 # MCP configuration base (will be updated with session state values)
 MCP_BASE_CONFIG = {
-    "mcp_servers": {
-        "url": "http://127.0.0.1:8001/mcp",
-        "headers": {}
-    },
+    "mcp_servers": {"url": "http://127.0.0.1:8001/mcp", "headers": {}},
 }
 
 
@@ -48,7 +44,9 @@ def initialize_session_state():
 
 def clear_mcp_tools_cache():
     """Clear all MCP tools cache entries"""
-    keys_to_remove = [key for key in st.session_state.keys() if key.startswith("mcp_tools_")]
+    keys_to_remove = [
+        key for key in st.session_state.keys() if key.startswith("mcp_tools_")
+    ]
     for key in keys_to_remove:
         del st.session_state[key]
 
@@ -153,10 +151,7 @@ def create_mcp_client(user_id: str, chatbot_id: str):
     config = {
         "mcp_servers": {
             "url": "http://127.0.0.1:8001/mcp",
-            "headers": {
-                "user_id": user_id,
-                "chatbot_id": chatbot_id
-            }
+            "headers": {"user_id": user_id, "chatbot_id": chatbot_id},
         },
     }
     return Client(config)
@@ -181,39 +176,41 @@ async def calling_tools(tool_name: str, tool_args: dict, user_id: str, chatbot_i
 def parse_tool_result(result):
     """Parse CallToolResult into a readable dictionary format"""
     parsed_result = {
-        "is_error": getattr(result, 'is_error', False),
-        "data": getattr(result, 'data', None),
+        "is_error": getattr(result, "is_error", False),
+        "data": getattr(result, "data", None),
     }
 
     # Parse content if available
-    if hasattr(result, 'content') and result.content:
+    if hasattr(result, "content") and result.content:
         content_list = []
         for content_item in result.content:
-            content_dict = {"type": getattr(content_item, 'type', 'unknown')}
+            content_dict = {"type": getattr(content_item, "type", "unknown")}
 
             # Handle text content
-            if hasattr(content_item, 'text'):
+            if hasattr(content_item, "text"):
                 content_dict["text"] = content_item.text
 
             # Handle other attributes
-            if hasattr(content_item, 'annotations') and content_item.annotations:
+            if hasattr(content_item, "annotations") and content_item.annotations:
                 content_dict["annotations"] = content_item.annotations
 
-            if hasattr(content_item, 'meta') and content_item.meta:
+            if hasattr(content_item, "meta") and content_item.meta:
                 content_dict["meta"] = content_item.meta
 
             content_list.append(content_dict)
         parsed_result["content"] = content_list
 
     # Parse structured_content if available
-    if hasattr(result, 'structured_content') and result.structured_content:
+    if hasattr(result, "structured_content") and result.structured_content:
         parsed_result["structured_content"] = result.structured_content
 
     # Try to extract the main result text from various sources
     main_text = None
     if parsed_result.get("data"):
         main_text = str(parsed_result["data"])
-    elif parsed_result.get("structured_content") and isinstance(parsed_result["structured_content"], dict):
+    elif parsed_result.get("structured_content") and isinstance(
+        parsed_result["structured_content"], dict
+    ):
         if "result" in parsed_result["structured_content"]:
             main_text = str(parsed_result["structured_content"]["result"])
     elif parsed_result.get("content") and len(parsed_result["content"]) > 0:
@@ -349,8 +346,8 @@ def render_sidebar():
         with st.expander("Available MCP Tools", expanded=False):
             try:
                 # Get current user_id and chatbot_id from session state
-                current_user_id = st.session_state.get('user_id', '')
-                current_chatbot_id = st.session_state.get('chatbot_id', '')
+                current_user_id = st.session_state.get("user_id", "")
+                current_chatbot_id = st.session_state.get("chatbot_id", "")
 
                 # Create a key that includes the IDs to refresh tools when IDs change
                 tools_cache_key = f"mcp_tools_{current_user_id}_{current_chatbot_id}"
@@ -366,7 +363,9 @@ def render_sidebar():
 
                 if tools:
                     # Display current IDs being used
-                    st.info(f"🔗 Using User ID: `{current_user_id[:8]}...` | Chatbot ID: `{current_chatbot_id[:8]}...`")
+                    st.info(
+                        f"🔗 Using User ID: `{current_user_id[:8]}...` | Chatbot ID: `{current_chatbot_id[:8]}...`"
+                    )
 
                     # Add refresh button
                     if st.button("🔄 Refresh Tools", help="Reload available MCP tools"):
@@ -383,102 +382,147 @@ def render_sidebar():
                             st.write(f"**Description:** {tool.description}")
 
                             # Get required parameters from inputSchema
-                            if tool.inputSchema and 'properties' in tool.inputSchema:
-                                required_params = tool.inputSchema.get('required', [])
-                                properties = tool.inputSchema['properties']
+                            if tool.inputSchema and "properties" in tool.inputSchema:
+                                required_params = tool.inputSchema.get("required", [])
+                                properties = tool.inputSchema["properties"]
 
                                 st.write("**Parameters:**")
 
                                 # Create input fields for each parameter
                                 tool_args = {}
                                 for param_name, param_info in properties.items():
-                                    param_type = param_info.get('type', 'string')
-                                    param_title = param_info.get('title', param_name)
-                                    param_description = param_info.get('description', '')
+                                    param_type = param_info.get("type", "string")
+                                    param_title = param_info.get("title", param_name)
+                                    param_description = param_info.get(
+                                        "description", ""
+                                    )
                                     is_required = param_name in required_params
 
-                                    label = f"{param_title} {'*' if is_required else ''}"
-                                    help_text = param_description if param_description else None
+                                    label = (
+                                        f"{param_title} {'*' if is_required else ''}"
+                                    )
+                                    help_text = (
+                                        param_description if param_description else None
+                                    )
 
-                                    if param_type == 'string':
+                                    if param_type == "string":
                                         value = st.text_input(
                                             label,
                                             key=f"mcp_{tool.name}_{param_name}",
-                                            help=help_text
+                                            help=help_text,
                                         )
                                         if value:
                                             tool_args[param_name] = value
-                                    elif param_type == 'integer':
+                                    elif param_type == "integer":
                                         value = st.number_input(
                                             label,
                                             key=f"mcp_{tool.name}_{param_name}",
                                             help=help_text,
-                                            step=1
+                                            step=1,
                                         )
                                         if value is not None:
                                             tool_args[param_name] = int(value)
-                                    elif param_type == 'boolean':
+                                    elif param_type == "boolean":
                                         value = st.checkbox(
                                             label,
                                             key=f"mcp_{tool.name}_{param_name}",
-                                            help=help_text
+                                            help=help_text,
                                         )
                                         tool_args[param_name] = value
 
                                 # Call tool button
-                                if st.button(f"Call {tool.name}", key=f"call_mcp_{tool.name}"):
+                                if st.button(
+                                    f"Call {tool.name}", key=f"call_mcp_{tool.name}"
+                                ):
                                     # Check if required parameters are provided
-                                    missing_required = [param for param in required_params if param not in tool_args or not tool_args[param]]
+                                    missing_required = [
+                                        param
+                                        for param in required_params
+                                        if param not in tool_args
+                                        or not tool_args[param]
+                                    ]
 
                                     if missing_required:
-                                        st.warning(f"Please fill in required parameters: {', '.join(missing_required)}")
+                                        st.warning(
+                                            f"Please fill in required parameters: {', '.join(missing_required)}"
+                                        )
                                     else:
                                         with st.spinner(f"Calling {tool.name}..."):
                                             try:
-                                                result = asyncio.run(calling_tools(
-                                                    tool.name, tool_args, current_user_id, current_chatbot_id
-                                                ))
-                                                parsed_result = parse_tool_result(result)
+                                                result = asyncio.run(
+                                                    calling_tools(
+                                                        tool.name,
+                                                        tool_args,
+                                                        current_user_id,
+                                                        current_chatbot_id,
+                                                    )
+                                                )
+                                                parsed_result = parse_tool_result(
+                                                    result
+                                                )
 
                                                 if parsed_result["is_error"]:
                                                     st.error("Tool execution failed!")
                                                     if parsed_result.get("main_result"):
-                                                        st.error(f"Error details: {parsed_result['main_result']}")
+                                                        st.error(
+                                                            f"Error details: {parsed_result['main_result']}"
+                                                        )
                                                 else:
-                                                    st.success("Tool executed successfully!")
+                                                    st.success(
+                                                        "Tool executed successfully!"
+                                                    )
 
                                                 # Display the main result
                                                 if parsed_result.get("main_result"):
                                                     st.success("**Result:**")
-                                                    st.code(parsed_result["main_result"], language="text")
+                                                    st.code(
+                                                        parsed_result["main_result"],
+                                                        language="text",
+                                                    )
                                                 else:
                                                     st.info("No result returned")
 
                                             except Exception as e:
-                                                st.error(f"Error calling tool: {str(e)}")
+                                                st.error(
+                                                    f"Error calling tool: {str(e)}"
+                                                )
                             else:
                                 st.info("This tool has no parameters.")
 
                                 # Call tool button for parameterless tools
-                                if st.button(f"🔧 Call {tool.name}", key=f"call_mcp_{tool.name}"):
+                                if st.button(
+                                    f"🔧 Call {tool.name}", key=f"call_mcp_{tool.name}"
+                                ):
                                     with st.spinner(f"Calling {tool.name}..."):
                                         try:
-                                            result = asyncio.run(calling_tools(
-                                                tool.name, {}, current_user_id, current_chatbot_id
-                                            ))
+                                            result = asyncio.run(
+                                                calling_tools(
+                                                    tool.name,
+                                                    {},
+                                                    current_user_id,
+                                                    current_chatbot_id,
+                                                )
+                                            )
                                             parsed_result = parse_tool_result(result)
 
                                             if parsed_result["is_error"]:
                                                 st.error("Tool execution failed!")
                                                 if parsed_result.get("main_result"):
-                                                    st.error(f"Error details: {parsed_result['main_result']}")
+                                                    st.error(
+                                                        f"Error details: {parsed_result['main_result']}"
+                                                    )
                                             else:
-                                                st.success("Tool executed successfully!")
+                                                st.success(
+                                                    "Tool executed successfully!"
+                                                )
 
                                             # Display the main result
                                             if parsed_result.get("main_result"):
                                                 st.success("**Result:**")
-                                                st.code(parsed_result["main_result"], language="text")
+                                                st.code(
+                                                    parsed_result["main_result"],
+                                                    language="text",
+                                                )
                                             else:
                                                 st.info("No result returned")
 
@@ -491,9 +535,11 @@ def render_sidebar():
                 st.error(f"Error loading MCP tools: {str(e)}")
                 if st.button("🔄 Retry Loading Tools"):
                     # Clear the cache for current IDs
-                    current_user_id = st.session_state.get('user_id', '')
-                    current_chatbot_id = st.session_state.get('chatbot_id', '')
-                    tools_cache_key = f"mcp_tools_{current_user_id}_{current_chatbot_id}"
+                    current_user_id = st.session_state.get("user_id", "")
+                    current_chatbot_id = st.session_state.get("chatbot_id", "")
+                    tools_cache_key = (
+                        f"mcp_tools_{current_user_id}_{current_chatbot_id}"
+                    )
                     if tools_cache_key in st.session_state:
                         del st.session_state[tools_cache_key]
                     st.rerun()
