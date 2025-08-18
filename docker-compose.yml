@@ -1,11 +1,11 @@
 version: '3.8'
 
 services:
-  mcp-servers:
+  mcp_servers:
     build:
       context: ./services/mcp_servers
       dockerfile: Dockerfile
-    container_name: mcp-servers
+    container_name: mcp_servers
     ports:
       - "9697:9697"
     env_file:
@@ -14,21 +14,21 @@ services:
       - app-network
 
 
-  main-api:
+  mcp_client:
     build:
-      context: ./services/main_fastapi_api
+      context: ./services/mcp_client
       dockerfile: Dockerfile
-    container_name: main-api
+    container_name: mcp_client
     ports:
       - "9696:9696"
     environment:
-      - MCP_SERVER_URL=http://mcp-servers:9697/mcp
+      - MCP_SERVER_URL=http://mcp_servers:9697/mcp
     env_file:
       - .env
     networks:
       - app-network
     depends_on:
-      - mcp-servers
+      - mcp_servers
 
 networks:
   app-network:

@@ -17,7 +17,7 @@ from ingestion_api.utils.uuid_validater import validate_uuid
 load_dotenv()
 
 # Create router instead of FastAPI app
-chatbot_agent = APIRouter(tags=["Chat Bot Agent"])
+chatbot_agent = APIRouter(tags=["Chat Agent"])
 
 
 def pre_model_hook(state):
