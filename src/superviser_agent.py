@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from schema.schmas import QueryRequest
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from prompts.prompts import SYS_PROMPT_SUPERVISOR_AGENT
+from langchain_core.messages import HumanMessage, AIMessage
 
 load_dotenv(find_dotenv())
 
@@ -69,7 +70,7 @@ async def _chatbot_agent(request: QueryRequest):
         if not DB_URI:
             raise ValueError("pgvector_connection environment variable is required")
         async with AsyncPostgresSaver.from_conn_string(DB_URI) as checkpointer:
-            # await checkpointer.setup()
+            await checkpointer.setup()
             agent = create_react_agent(
                 pre_model_hook=pre_model_hook,
                 model=llm,
@@ -77,6 +78,9 @@ async def _chatbot_agent(request: QueryRequest):
                 prompt=SYS_PROMPT_SUPERVISOR_AGENT,
                 checkpointer=checkpointer,
             )
+
+
+
             # checkpointer.
             # print(list( await agent.aget_state_history(config=config)))
             ai_message = ""
