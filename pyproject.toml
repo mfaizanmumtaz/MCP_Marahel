@@ -57,4 +57,5 @@ dependencies = [
     "psycopg[binary,pool]>=3.2.9",
     "langchain-mcp-adapters>=0.1.9",
     "langmem>=0.0.29",
+    "pypdf2>=3.0.1",
 ]
