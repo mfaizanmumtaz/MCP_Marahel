@@ -59,7 +59,6 @@ async def cag_ingestion(
     files: List[UploadFile],
     chatbot_id: str = Form(...),
     llm: str = Form(...),
-    session_id: Optional[str] = Form(None),  # Made optional
     db: AsyncSession = Depends(get_db),
 ):
     # --- initial validation & setup (unchanged) ---
@@ -69,8 +68,6 @@ async def cag_ingestion(
         raise HTTPException(422, "Invalid chatbot_id uuid format")
     if llm not in ["openai", "claude"]:
         raise HTTPException(422, "Invalid LLM; choose openai, claude.")
-    # if not session_id:
-    #     raise HTTPException(422, "session_id is required")
 
     logger.info(f"Starting CAG ingestion (chatbot: {chatbot_id}, llm: {llm})")
 
@@ -129,7 +126,7 @@ async def cag_ingestion(
 
             # 1) Try CSV/Excel in-memory
             file_id = await csv_excel_handler.process_in_memory(
-                chatbot_id, session_id, content, upload.filename
+                chatbot_id, None, content, upload.filename
             )
             if file_id:
                 logger.info(f"Stored sheet {upload.filename} as ID {file_id}")
@@ -214,18 +211,7 @@ async def cag_ingestion(
 
         # Store PDF content
         if pdf_content:
-            if session_id:
-                # Store PDF content with session_id if available
-                db.add(
-                    RawData(
-                        chatbot_id=chatbot_id,
-                        session_id=session_id,
-                        data=json.dumps(pdf_content),
-                    )
-                )
-            else:
-                # Store PDF content normally if no session_id
-                db.add(RawData(chatbot_id=chatbot_id, data=json.dumps(pdf_content)))
+            db.add(RawData(chatbot_id=chatbot_id, data=json.dumps(pdf_content)))
 
         # Store non-PDF content normally
         if non_pdf_content:

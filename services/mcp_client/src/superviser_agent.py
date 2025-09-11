@@ -52,7 +52,6 @@ async def _chatbot_agent(request: QueryRequest):
             detail="Invalid chatbot_id format. Must be a valid UUID."
         )
 
-    
 
     try:
         try:

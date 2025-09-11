@@ -1,38 +1,16 @@
 version: '3.8'
-
 services:
-  mcp_servers:
-    build:
-      context: ./services/mcp_servers
-      dockerfile: Dockerfile
-    container_name: mcp_servers
-    ports:
-      - "9697:9697"
-    env_file:
-      - .env
-    networks:
-      - app-network
-
-
-  mcp_client:
-    build:
-      context: ./services/mcp_client
-      dockerfile: Dockerfile
-    container_name: mcp_client
-    ports:
-      - "9696:9696"
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: postgres-pgvector
     environment:
-      - MCP_SERVER_URL=http://mcp_servers:9697/mcp
-    env_file:
-      - .env
-    networks:
-      - app-network
-    depends_on:
-      - mcp_servers
-
-networks:
-  app-network:
-    driver: bridge
+      POSTGRES_DB: marahel
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
 
 volumes:
-  postgres_data:
+  pgdata:

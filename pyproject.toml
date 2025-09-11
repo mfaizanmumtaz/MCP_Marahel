@@ -58,4 +58,5 @@ dependencies = [
     "langchain-mcp-adapters>=0.1.9",
     "langmem>=0.0.29",
     "pypdf2>=3.0.1",
+    "pdfplumber>=0.11.7",
 ]

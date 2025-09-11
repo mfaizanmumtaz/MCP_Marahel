@@ -8,7 +8,11 @@ from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv())
 
 
-async def pg_insertion(text, embeddings, collection_name):
+async def pg_insertion(docs, embeddings, collection_name,user_id=None):
+    if user_id:
+        for doc in docs:
+            doc.metadata['user_id'] = user_id
+
     vector_store = PGVector(
         embeddings=embeddings,
         collection_name=collection_name,
@@ -16,7 +20,7 @@ async def pg_insertion(text, embeddings, collection_name):
         use_jsonb=True,
         async_mode=True,
     )
-    _object = await vector_store.aadd_documents(text)
+    _object = await vector_store.aadd_documents(docs)
 
     # print("insertion successful")
     return _object
