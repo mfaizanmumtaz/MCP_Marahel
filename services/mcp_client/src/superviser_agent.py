@@ -37,6 +37,7 @@ async def _chatbot_agent(request: QueryRequest):
     user_id = request.user_id
     tenant_id = request.tenant_id
 
+
     try:
         try:
             mcp_server_url = os.getenv("MCP_SERVER_URL", "http://127.0.0.1:9697/mcp")
@@ -60,7 +61,7 @@ async def _chatbot_agent(request: QueryRequest):
 
         llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0.5)
 
-        config = {"configurable": {"thread_id": f"{user_id}"}}
+        # config = {"configurable": {"thread_id": f"{tenant_id}"}}
 
         DB_URI = f"postgresql://{os.getenv('PG_USER_NAME')}:{quote_plus(os.getenv('PG_PASSWORD'))}@{os.getenv('PG_HOST')}:{os.getenv('PG_PORT')}/{os.getenv('PG_NAME')}?sslmode=disable"
 
@@ -70,7 +71,7 @@ async def _chatbot_agent(request: QueryRequest):
         async with AsyncPostgresSaver.from_conn_string(
             conn_string=DB_URI
         ) as checkpointer:
-            await checkpointer.setup()
+            # await checkpointer.setup()
             agent = create_react_agent(
                 model=llm,
                 pre_model_hook=pre_model_hook,
@@ -84,6 +85,7 @@ async def _chatbot_agent(request: QueryRequest):
             response = await agent.ainvoke(
                 {"messages": [{"role": "user", "content": query}]}, config
             )
+            # print(response.get("messages"))
             ai_message = response.get("messages", [])[-1].content
 
             return JSONResponse(content={"response": f"{ai_message}"}, status_code=200)

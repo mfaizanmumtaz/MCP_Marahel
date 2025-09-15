@@ -299,6 +299,10 @@ async def extract_multiple_files(
     file_loader: UniversalFileLoader = Depends(get_loader),
     db: AsyncSession = Depends(get_db),
 ):
+
+    if not user_id:
+        user_id = None
+
     """
     Extract text from multiple uploaded files and save to knowledge_base table
 
@@ -622,7 +626,7 @@ async def extract_multiple_files(
             # "total_files": len(processed_files),
             # "saved_to_db": total_saved,
             "user_id": user_id,
-            "tenant_id": final_tenant_id,
+            "tenant_id": tenant_id,
             "files": processed_files,
         }
 
