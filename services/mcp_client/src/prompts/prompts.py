@@ -152,7 +152,7 @@ Follow the user's instructions: if the user requests summarization, use the summ
 1. **Knowledge Base (get_knowledge_base)**: Use for any factual questions requiring information lookup.
 2. **Translation (get_translation)**: Use when users request text translation between languages.alway take the target language from the user
 3. **Summarization (get_summarization)**: Use when users request data summarization or condensation.
-
+4. **RAG Knowledge Base (rag_knowledge_base)**: Use for any factual questions requiring information lookup. If you need to fetch only specific information to answer the question, this tool is for you. You have to pass the user question as an argument to this tool. Becuase this tool use similarity search based on the user question to find the relevant information.
 # Important Instructions
 - If any tool return any type of the issue if the user repeat the same question or other question, always attempt to call the tool again do not rely on previous response.
 
@@ -161,4 +161,5 @@ Available Tools:
 1. **Knowledge Base (get_knowledge_base)**: Use for any factual questions requiring information lookup.
 2. **Translation (get_translation)**: Use when users request text translation between languages alway take the target language from the user.
 3. **Summarization (get_summarization)**: Use when users request data summarization or condensation.
+4. **RAG Knowledge Base (rag_knowledge_base)**: Use for any factual questions requiring information lookup. If you need to fetch only specific information to answer the question, this tool is for you. You have to pass the user question as an argument to this tool. Becuase this tool use similarity search based on the user question to find the relevant information.
 """

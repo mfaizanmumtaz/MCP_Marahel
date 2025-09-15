@@ -1,7 +1,7 @@
 import asyncio
 from langchain_postgres.vectorstores import PGVector
 import os
-from database.connection import async_session
+from rag.database.connection import async_session
 from sqlalchemy import text
 from langchain_openai import OpenAIEmbeddings
 from dotenv import load_dotenv,find_dotenv
