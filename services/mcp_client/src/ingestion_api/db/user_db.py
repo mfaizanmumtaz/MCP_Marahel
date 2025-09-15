@@ -9,13 +9,9 @@ from datetime import datetime
 from sqlalchemy import LargeBinary
 import asyncio
 import sys
-from sqlalchemy import create_engine, Column, String, Text, DateTime, ForeignKey, Boolean
+from sqlalchemy import Boolean
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.dialects.postgresql import UUID
-from pgvector.sqlalchemy import Vector
-import uuid
-from datetime import datetime
 from dotenv import load_dotenv, find_dotenv
 
 load_dotenv(find_dotenv())
@@ -99,32 +95,35 @@ class LoanRecord(Base):
 
 
 class Tenant(Base):
-    __tablename__ = 'tenants'
-    
+    __tablename__ = "tenants"
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(String(255), nullable=False, unique=True)  # Unique tenant identifier
+    tenant_id = Column(
+        String(255), nullable=False, unique=True
+    )  # Unique tenant identifier
     user_id = Column(String(255), nullable=True)  # Optional user_id
     summary_access = Column(Boolean, default=False)
     translation_access = Column(Boolean, default=False)
     rag_access = Column(Boolean, default=False)
     cag_access = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
-    
-    knowledge_bases = relationship("KnowledgeBase", back_populates="tenant")
+
 
 class KnowledgeBase(Base):
-    __tablename__ = 'knowledge_base'
-    
+    __tablename__ = "knowledge_base"
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey('tenants.id'), nullable=False)
-    user_id = Column(String(255), nullable=True)  # Optional user isolation within tenant
+    tenant_id = Column(String(255), nullable=False)
+    user_id = Column(
+        String(255), nullable=True
+    )  # Optional user isolation within tenant
     # file_name = Column(String(255), nullable=False)
     # file_type = Column(String(10), nullable=False)  # pdf, docx, txt, csv, xlsx
     content = Column(Text, nullable=False)
-    pgvector_collection_name = Column(String(255), nullable=True)  # Store pgvector collection name
+    pgvector_collection_name = Column(
+        String(255), nullable=True
+    )  # Store pgvector collection name
     created_at = Column(DateTime, default=datetime.utcnow)
-    
-    tenant = relationship("Tenant", back_populates="knowledge_bases")
 
 
 # async def init_db():

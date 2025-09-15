@@ -59,4 +59,5 @@ dependencies = [
     "langmem>=0.0.29",
     "pypdf2>=3.0.1",
     "pdfplumber>=0.11.7",
+    "ruff>=0.13.0",
 ]

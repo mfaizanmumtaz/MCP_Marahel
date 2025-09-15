@@ -1,7 +1,6 @@
-import uuid
 from fastapi import APIRouter, HTTPException
 from langchain_openai import ChatOpenAI
-from dotenv import load_dotenv, find_dotenv
+from dotenv import load_dotenv
 import os
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.prebuilt import create_react_agent
@@ -12,7 +11,6 @@ from schema.schmas import QueryRequest
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from prompts.prompts import SYS_PROMPT_SUPERVISOR_AGENT
 from urllib.parse import quote_plus
-from ingestion_api.utils.uuid_validater import validate_uuid
 
 load_dotenv()
 
@@ -37,43 +35,28 @@ async def _chatbot_agent(request: QueryRequest):
     """Create an agent graph with the specified user_id and chatbot_id"""
     query = request.query
     user_id = request.user_id
-    chatbot_id = request.chatbot_id
-
-    # Validate UUIDs
-    if not validate_uuid(user_id):
-        raise HTTPException(
-            status_code=422, 
-            detail="Invalid user_id format. Must be a valid UUID."
-        )
-    
-    if not validate_uuid(chatbot_id):
-        raise HTTPException(
-            status_code=422, 
-            detail="Invalid chatbot_id format. Must be a valid UUID."
-        )
-
+    tenant_id = request.tenant_id
 
     try:
         try:
-                mcp_server_url = os.getenv("MCP_SERVER_URL", "http://127.0.0.1:9697/mcp")
-                translation_summarization_client = MultiServerMCPClient(
-                    {
-                        "Services": {
-                            "url": mcp_server_url,
-                            "transport": "streamable_http",
-                            "headers": {"user_id": user_id, "chatbot_id": chatbot_id},
-                        }
+            mcp_server_url = os.getenv("MCP_SERVER_URL", "http://127.0.0.1:9697/mcp")
+            translation_summarization_client = MultiServerMCPClient(
+                {
+                    "Services": {
+                        "url": mcp_server_url,
+                        "transport": "streamable_http",
+                        "headers": {"user_id": user_id, "tenant_id": tenant_id},
                     }
-                )
+                }
+            )
 
-                # Get tools from both clients
-                tools = await translation_summarization_client.get_tools()
+            # Get tools from both clients
+            tools = await translation_summarization_client.get_tools()
         except Exception:
-                raise HTTPException(
-                    status_code=500,
-                    detail="Error fetching tools please make sure your mcp server is runing.",
-                )
-
+            raise HTTPException(
+                status_code=500,
+                detail="Error fetching tools please make sure your mcp server is runing.",
+            )
 
         llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0.5)
 
@@ -83,25 +66,27 @@ async def _chatbot_agent(request: QueryRequest):
 
         if not DB_URI:
             raise ValueError("pgvector_connection environment variable is required")
-        
-        async with AsyncPostgresSaver.from_conn_string(conn_string=DB_URI) as checkpointer:
-            # await checkpointer.setup()
-            # agent = create_react_agent(
-            #     model=llm,
-            #     pre_model_hook=pre_model_hook,
-            #     tools=tools,
-            #     prompt=SYS_PROMPT_SUPERVISOR_AGENT,
-            #     checkpointer=checkpointer
-            # )
 
-            print(await checkpointer.alist())
+        async with AsyncPostgresSaver.from_conn_string(
+            conn_string=DB_URI
+        ) as checkpointer:
+            await checkpointer.setup()
+            agent = create_react_agent(
+                model=llm,
+                pre_model_hook=pre_model_hook,
+                tools=tools,
+                prompt=SYS_PROMPT_SUPERVISOR_AGENT,
+                checkpointer=checkpointer,
+            )
 
             config = {"configurable": {"thread_id": f"{user_id}"}}
 
-            # response = await agent.ainvoke({"messages": [{"role": "user", "content": query}]}, config)
-            # ai_message = response.get("messages", [])[-1].content
+            response = await agent.ainvoke(
+                {"messages": [{"role": "user", "content": query}]}, config
+            )
+            ai_message = response.get("messages", [])[-1].content
 
-            return JSONResponse(content={"response": f"{"ai_message"}"}, status_code=200)
+            return JSONResponse(content={"response": f"{ai_message}"}, status_code=200)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing query: {str(e)}")

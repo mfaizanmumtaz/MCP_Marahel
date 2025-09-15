@@ -16,3 +16,4 @@ uv.lock
 __pycache__/
 test.ipynb
 uv.lock
+services/mcp_servers/src/rag_cag_agent/

@@ -1,10 +1,11 @@
 from pydantic import BaseModel
+from typing import Optional
 
 
 class QueryRequest(BaseModel):
     query: str
-    chatbot_id: str
-    user_id: str
+    tenant_id: str
+    user_id: Optional[str] = None
 
 
 class MessageResponse(BaseModel):

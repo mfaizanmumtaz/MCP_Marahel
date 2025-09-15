@@ -1,7 +1,6 @@
-from rag_cag_agent.cag_rag_mcp import mcp as knowledge_base_mcp
 from translation.translation import mcp as translation_mcp
 from summarization.summarization import mcp as summarization_mcp
-
+from cag.cag_mcp import mcp as cag_mcp
 from fastmcp import FastMCP
 
 # Create main server
@@ -16,9 +15,9 @@ mcp = FastMCP(
 )
 
 # Mount the individual servers with appropriate prefixes
-mcp.mount(knowledge_base_mcp)
 mcp.mount(translation_mcp)
 mcp.mount(summarization_mcp)
+mcp.mount(cag_mcp)
 
 if __name__ == "__main__":
     # mcp.run(transport="streamable-http")

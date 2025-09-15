@@ -8,10 +8,10 @@ from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv())
 
 
-async def pg_insertion(docs, embeddings, collection_name,user_id=None):
+async def pg_insertion(docs, embeddings, collection_name, user_id=None):
     if user_id:
         for doc in docs:
-            doc.metadata['user_id'] = user_id
+            doc.metadata["user_id"] = user_id
 
     vector_store = PGVector(
         embeddings=embeddings,

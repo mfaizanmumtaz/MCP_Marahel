@@ -89,7 +89,6 @@ def convert_excel_to_csv(excel_file, output_csv):
         output_df = pd.DataFrame(columns=output_columns)
 
         # Process the data rows
-        current_main_category = None
 
         # Skip the header row (row 0)
         for i in range(1, len(data_section)):

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, Form, Depends, HTTPException
 from fastapi.responses import JSONResponse
-from typing import List, Optional
+from typing import List
 import tempfile
 import json
 import logging
