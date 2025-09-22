@@ -13,9 +13,7 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.document_loaders import UnstructuredPowerPointLoader
 from langchain_community.document_loaders import UnstructuredExcelLoader
 from langchain_community.document_loaders import Docx2txtLoader
-from dotenv import load_dotenv, find_dotenv
-
-load_dotenv(find_dotenv())
+from config.settings import settings
 # OpenAI import
 from openai import AsyncOpenAI
 
@@ -66,7 +64,7 @@ class UniversalFileLoader:
         self.client = (
             AsyncOpenAI(api_key=openai_api_key) if openai_api_key else AsyncOpenAI()
         )
-        self.openrouter_api_key = openrouter_api_key or os.getenv("OPENROUTER_API_KEY")
+        self.openrouter_api_key = openrouter_api_key or settings.OPENROUTER_API_KEY
 
         # Supported file extensions
         self.supported_extensions = {

@@ -1,13 +1,11 @@
 from qdrant_client import QdrantClient, models, AsyncQdrantClient
 from langchain_qdrant import QdrantVectorStore
 import os
-from dotenv import load_dotenv, find_dotenv
-
-load_dotenv(find_dotenv())
+from config.settings import settings
 
 # Initialize environment and qdrant
-qdrant_api_key = os.getenv("QDRANT_API_KEY")
-qdrant_url = os.getenv("QDRANT_URL")
+qdrant_api_key = settings.QDRANT_API_KEY
+qdrant_url = settings.QDRANT_URL
 
 
 class QdrantInsertRetrievalAll:

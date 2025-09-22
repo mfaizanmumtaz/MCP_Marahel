@@ -10,11 +10,12 @@ import random
 import datetime
 import asyncio
 from ingestion_api.utils.pg_vector import pg_insertion, pg_deletion
-from ingestion_api.db.postgres_connection import AsyncSession, get_db
+from ingestion_api.db.connection import get_db
+from sqlalchemy.ext.asyncio import AsyncSession
 import aiofiles
 from sqlalchemy import select, update, text
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
-from ingestion_api.db.user_db import Collections_Dev, RawData
+from ingestion_api.db.models import Collections_Dev, RawData
 from ingestion_api.utils.ingestion_utils import IncomingFileProcessor
 from ingestion_api.utils.uuid_validater import validate_uuid
 from langchain_core.documents import Document
@@ -22,11 +23,7 @@ from ingestion_api.utils.count_tokens import count_tokens
 from ingestion_api.utils.qdrant_class import QdrantInsertRetrievalAll
 from ingestion_api.utils.csv_excel_uploader import CSVExcelHandler
 from langchain_openai import OpenAIEmbeddings
-
-
-from dotenv import load_dotenv, find_dotenv
-
-load_dotenv(find_dotenv())
+from config.settings import settings
 
 qdrant = QdrantInsertRetrievalAll()
 
@@ -73,8 +70,8 @@ async def cag_ingestion(
 
     try:
         processor = IncomingFileProcessor(
-            chunk_size=int(os.getenv("chunk_size")),
-            chunk_overlap=int(os.getenv("chunk_overlap")),
+            chunk_size=settings.CHUNK_SIZE,
+            chunk_overlap=settings.CHUNK_OVERLAP,
         )
     except Exception as e:
         logger.error(f"Chunk-size/env error: {e}")

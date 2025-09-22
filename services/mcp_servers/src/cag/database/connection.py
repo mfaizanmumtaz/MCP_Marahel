@@ -1,28 +1,26 @@
-import os
-import sys
-import asyncio
-from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import create_engine
+from cag.config import settings
 
-load_dotenv()
-
-# Fix for Windows asyncio compatibility with psycopg
-if sys.platform.startswith("win"):
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
-pgvector_connection = os.getenv("pgvector_connection")
+# SQLAlchemy Base
+Base = declarative_base()
 
 # Create async SQLAlchemy engine
-async_engine = create_async_engine(pgvector_connection)
+async_engine = create_async_engine(
+    settings.DATABASE_URL,
+    echo=True,
+    pool_size=settings.DB_POOL_SIZE,
+    max_overflow=settings.DB_MAX_OVERFLOW,
+    pool_timeout=settings.DB_POOL_TIMEOUT
+)
 
 # Create synchronous engine
 engine = create_engine(
-    pgvector_connection.replace("postgresql+asyncpg", "postgresql"),
-    pool_size=500,
-    max_overflow=500,
-    pool_timeout=60,
+    settings.DATABASE_URL.replace("postgresql+asyncpg", "postgresql"),
+    pool_size=settings.DB_POOL_SIZE,
+    max_overflow=settings.DB_MAX_OVERFLOW,
+    pool_timeout=settings.DB_POOL_TIMEOUT,
 )
 
 # Create async sessionmaker

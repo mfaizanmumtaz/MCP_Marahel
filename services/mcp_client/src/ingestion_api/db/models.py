@@ -1,35 +1,10 @@
-from sqlalchemy import Column, String, Text, DateTime
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.dialects.postgresql import TEXT
-from urllib.parse import quote
-import uuid
-import os
-from datetime import datetime
-from sqlalchemy import LargeBinary
 import asyncio
-import sys
-from sqlalchemy import Boolean
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.dialects.postgresql import UUID
-from dotenv import load_dotenv, find_dotenv
+import uuid
+from datetime import datetime
 
-load_dotenv(find_dotenv())
-
-# Fix for Windows asyncio compatibility with psycopg
-if sys.platform.startswith("win"):
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
-# Database URL configuration
-DATABASE_URL = (
-    f"postgresql+asyncpg://{os.getenv('PG_USER_NAME')}:{quote(os.getenv('PG_PASSWORD', ''))}@"
-    f"{os.getenv('PG_HOST')}:{int(os.getenv('PG_PORT', '5432'))}/{os.getenv('PG_NAME')}"
-)
-
-# Async engine and session setup
-engine = create_async_engine(DATABASE_URL, echo=True)
-async_session = async_sessionmaker(bind=engine, expire_on_commit=False)
-Base = declarative_base()
+from sqlalchemy import Column, String, Text, DateTime, LargeBinary, Boolean
+from sqlalchemy.dialects.postgresql import TEXT, UUID
+from ingestion_api.db.connection import async_engine as engine, Base
 
 
 class Collections_Dev(Base):
@@ -45,7 +20,6 @@ class Collections_Dev(Base):
     )  # Enforced unique constraint
     vectordb_name = Column(String, nullable=False)
     llm = Column(String, nullable=False)
-    # session_id = Column(String,nullable=True)
 
 
 class ChatHistory(Base):
@@ -66,8 +40,7 @@ class RawData(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     data = Column(TEXT, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
-    chatbot_id = Column(String, nullable=False)  # Enforced unique constraint
-
+    chatbot_id = Column(String, nullable=False)
     session_id = Column(String, nullable=True)
 
 
@@ -75,11 +48,9 @@ class UserFile(Base):
     __tablename__ = "user_files_dev_2"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    chatbot_id = Column(String, nullable=False)  # Can be linked to chatbot_id/user_id
+    chatbot_id = Column(String, nullable=False)
     filename = Column(String, nullable=False)
-    content = Column(
-        LargeBinary, nullable=False
-    )  # This supports binary Excel/CSV files
+    content = Column(LargeBinary, nullable=False)
     uploaded_at = Column(DateTime, default=datetime.utcnow)
     session_id = Column(String, nullable=True)
 
@@ -90,7 +61,7 @@ class LoanRecord(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     chatbot_id = Column(String, nullable=False)
     phone_number = Column(String, nullable=False)
-    loan_record_data = Column(Text, nullable=False)  # Store the raw string data
+    loan_record_data = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -117,8 +88,6 @@ class KnowledgeBase(Base):
     user_id = Column(
         String(255), nullable=True
     )  # Optional user isolation within tenant
-    # file_name = Column(String(255), nullable=False)
-    # file_type = Column(String(10), nullable=False)  # pdf, docx, txt, csv, xlsx
     content = Column(Text, nullable=False)
     pgvector_collection_name = Column(
         String(255), nullable=True
@@ -126,20 +95,8 @@ class KnowledgeBase(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
-# async def init_db():
-#     # Create tables if not exist
-#     async with engine.begin() as conn:in z
-#         await conn.run_sync(Base.metadata.create_all)
-#     print("Tables created successfully.")
-
-
-# async def init_db():
-#     async with engine.begin() as conn:
-#         await conn.run_sync(Base.metadata.drop_all)
-#         await conn.run_sync(Base.metadata.create_all)
-
-
 async def init_db():
+    """Initialize database tables."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 

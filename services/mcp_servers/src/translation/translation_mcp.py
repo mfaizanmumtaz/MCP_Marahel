@@ -1,25 +1,19 @@
 from sqlalchemy import select
 from translation.database.connection import get_db
 from translation.database.models import Tenant, KnowledgeBase
+from translation.config.settings import settings
 from fastmcp import FastMCP
 from fastmcp.server.dependencies import get_http_headers
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
-import os
+from langchain_core.documents import Document
 import json
 import logging
-from dotenv import load_dotenv, find_dotenv
+from translation.prompts import system_prompt_for_translation
 
 logger = logging.getLogger(__name__)
 
-load_dotenv(find_dotenv())
-
 mcp = FastMCP("Data Translation")
-
-
-system_prompt = """You are a professional translator with expertise in {target_language} language.
-You will receive a block of text and your task is to translate it accurately to the {target_language} language while preserving the original meaning, tone, and context.
-Your translation should be natural, fluent, and culturally appropriate for the target language."""
 
 @mcp.tool()
 async def get_translation(target_language: str) -> dict:
@@ -99,25 +93,37 @@ async def get_translation(target_language: str) -> dict:
                     "status": "error",
                 }
 
-            # Extract and combine all content for translation
-            combined_content = []
+            # Convert knowledge_entries to LangChain Document objects
+            all_documents = []
             for entry in knowledge_entries:
-                content = (
-                    json.loads(entry.content)
-                    if entry.content.startswith("[")
-                    or entry.content.startswith("{")
-                    else entry.content
-                )
+                try:
+                    # Parse the stored content as JSON (should be list of Document dicts)
+                    if entry.content.startswith("[") or entry.content.startswith("{"):
+                        raw_data = json.loads(entry.content)
+                        # Convert to LangChain Document objects
+                        documents = [Document(**doc) for doc in raw_data] if isinstance(raw_data, list) else [Document(**raw_data)]
+                        all_documents.extend(documents)
+                    else:
+                        # Handle plain text content
+                        all_documents.append(Document(page_content=entry.content, metadata={"source": "raw_text"}))
+                except (json.JSONDecodeError, TypeError) as e:
+                    # Fallback for malformed content
+                    all_documents.append(Document(page_content=str(entry.content), metadata={"source": "fallback", "error": str(e)}))
 
-                if isinstance(content, list):
-                    combined_content.extend([str(item) for item in content])
-                elif isinstance(content, dict):
-                    combined_content.append(str(content))
-                else:
-                    combined_content.append(str(content))
+            # Format documents for translation
+            formatted_content = []
+            for doc in all_documents:
+                content = doc.page_content
+                metadata = doc.metadata.get("original_filename") if doc.metadata else None
+
+                doc_info = f"Content: {content}"
+                if metadata:
+                    doc_info += f"\nOriginal Filename: {metadata}"
+
+                formatted_content.append(doc_info)
 
             # Join all content for translation
-            text_to_translate = "\n\n".join(combined_content)
+            text_to_translate = "\n\n---\n\n".join(formatted_content)
 
             if len(text_to_translate.strip()) < 10:
                 return {
@@ -127,11 +133,16 @@ async def get_translation(target_language: str) -> dict:
 
             # Initialize OpenAI client and generate translation
             prompt = ChatPromptTemplate([
-                ("system", system_prompt),
-                ("user", "Text to translate: ```{text}``` \nTarget language: {target_language}")            ])
-            translation_pipeline = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+                ("system", system_prompt_for_translation),
+                ("user", "Text to translate: ```{text}``` \nTarget language: {target_language}")
+            ])
+            translation_pipeline = ChatOpenAI(
+                model=settings.openai_translation_model,
+                temperature=settings.openai_temperature,
+                api_key=settings.openai_api_key
+            )
             chain = prompt | translation_pipeline
-            response = await chain.ainvoke({"text": text_to_translate,"target_language": target_language})
+            response = await chain.ainvoke({"text": text_to_translate, "target_language": target_language})
 
             return {
                 "translation": response.content,
@@ -148,7 +159,3 @@ async def get_translation(target_language: str) -> dict:
             "error": f"Failed to generate translation: {str(e)}",
             "status": "error",
         }
-
-
-if __name__ == "__main__":
-    mcp.run(transport="http")

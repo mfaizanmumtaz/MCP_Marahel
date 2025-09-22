@@ -6,6 +6,7 @@ class QueryRequest(BaseModel):
     query: str
     tenant_id: str
     user_id: str
+    session_id: str
 
 
 class MessageResponse(BaseModel):

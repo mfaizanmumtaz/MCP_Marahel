@@ -1,11 +1,9 @@
 from langchain_postgres.vectorstores import PGVector
 import os
-from ingestion_api.db.postgres_connection import async_session
+import asyncio
+from ingestion_api.db.connection import async_session
 from sqlalchemy import text
-
-from dotenv import load_dotenv, find_dotenv
-
-load_dotenv(find_dotenv())
+from config.settings import settings
 
 
 async def pg_insertion(docs, embeddings, collection_name, user_id=None):
@@ -13,16 +11,21 @@ async def pg_insertion(docs, embeddings, collection_name, user_id=None):
         for doc in docs:
             doc.metadata["user_id"] = user_id
 
-    vector_store = PGVector(
-        embeddings=embeddings,
-        collection_name=collection_name,
-        connection=os.getenv("pgvector_connection"),
-        use_jsonb=True,
-        async_mode=True,
-    )
-    _object = await vector_store.aadd_documents(docs)
+    # Use synchronous connection string for pgvector (langchain-postgres requirement)
+    sync_connection = settings.PGVECTOR_CONNECTION_LEGACY
 
-    # print("insertion successful")
+    def _sync_insertion():
+        vector_store = PGVector(
+            embeddings=embeddings,
+            collection_name=collection_name,
+            connection=sync_connection,
+            use_jsonb=True,
+        )
+        return vector_store.add_documents(docs)
+
+    # Run synchronous operation in thread pool to avoid blocking async event loop
+    _object = await asyncio.get_event_loop().run_in_executor(None, _sync_insertion)
+
     return _object
 
 

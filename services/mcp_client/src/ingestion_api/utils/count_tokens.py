@@ -2,8 +2,8 @@ from langchain_core.documents import Document
 import tiktoken
 from sqlalchemy import select
 import json
-from ingestion_api.db.user_db import RawData
-from ingestion_api.db.postgres_connection import async_session
+from ingestion_api.db.models import RawData
+from ingestion_api.db.connection import async_session
 import logging
 from sqlalchemy.exc import SQLAlchemyError
 from typing import List, Optional

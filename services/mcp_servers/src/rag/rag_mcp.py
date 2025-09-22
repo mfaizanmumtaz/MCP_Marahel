@@ -1,26 +1,56 @@
 from fastmcp import FastMCP
 from fastmcp.server.dependencies import get_http_headers
-from rag.database.pg_vector import get_data as get_vector_data
-from dotenv import load_dotenv, find_dotenv
+from rag.database.pg_vector import get_data
+from rag.database.connection import get_db
+from rag.database.models import Tenant, KnowledgeBase
+from rag.prompts import system_prompt_for_rag_based_generation
+from rag.config.settings import settings
 import json
 import logging
 from sqlalchemy import select
-from rag.database.connection import get_db
-from rag.database.models import Tenant, KnowledgeBase
-from rag.utils.formate_documents import extract_usefull_info
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
 
 logger = logging.getLogger(__name__)
 
-# app = FastAPI()
-
-load_dotenv(find_dotenv())
-
-# Initialize FastMCP without auth parameter since we handle JWT manually
-
+# Initialize FastMCP
 mcp = FastMCP("RAG KnowledgeBase")
 
+# Initialize LLM with settings
+llm = ChatOpenAI(
+    model=settings.openai_chat_model,
+    api_key=settings.openai_api_key,
+    temperature=settings.openai_temperature
+)
+
+def get_answer(query,docs):
+    prompt = ChatPromptTemplate([
+        ("system", system_prompt_for_rag_based_generation),
+        ("user", "{query}")
+    ])
+    chain = prompt | llm
+    response = chain.invoke({"query": query, "context": docs}).content
+    return response
+
+
+async def format_data(docs):
+    formatted_content = []
+    for doc in docs.get("documents", []):
+        # Extract content and metadata from LangChain Document objects
+        content = doc.page_content
+        metadata = doc.metadata.get("original_filename") if doc.metadata else None
+
+        # Format the document for context
+        doc_info = f"Content: {content}"
+        if metadata:
+            doc_info += f"\nOriginal Filename: {metadata}"
+
+        formatted_content.append(doc_info)
+
+    return "\n\n---\n\n".join(formatted_content)
+
 @mcp.tool()
-async def rag_knowledge_base(query:str):
+async def rag_knowledge_base(user_query:str):
     """
     Tool to retrieve the spicif knowledge based on the query.this tool return the exact content related to the query. if you are looking for the answer related to the query, this tool is for you.
     Args:
@@ -43,9 +73,9 @@ async def rag_knowledge_base(query:str):
                 "error": "Missing tenant_id in token",
                 "status": "error",
             }
-        logger.info(f"Query: {query}")
+        logger.info(f"Query: {user_query}")
         logger.info(f"Knowledge base request from user: {user_id}, tenant: {tenant_id}")
-        logger.info(f"Query: {query}")
+        logger.info(f"Query: {user_query}")
         db_generator = get_db()
         db = await db_generator.__anext__()
         try:
@@ -64,7 +94,7 @@ async def rag_knowledge_base(query:str):
                 .where(KnowledgeBase.tenant_id == actual_tenant_id)
             )
             kb_result = await db.execute(kb_query)
-            kb_entry = kb_result.scalar_one_or_none()
+            kb_entry = kb_result.scalars().first()
 
             if not kb_entry or not kb_entry.pgvector_collection_name:
                 return {"error": "No knowledge base or collection name found for this tenant", "status": "error"}
@@ -73,12 +103,15 @@ async def rag_knowledge_base(query:str):
             logger.info(f"Using collection: {collection_name} for tenant: {tenant_id}, user: {user_id}")
 
             # Fetch vector data using collection name
-            vector_results = await get_vector_data(query, collection_name, user_id)
-            data = await extract_usefull_info(vector_results)
+            docs = await get_data(user_query, collection_name, user_id)
+            cleaned_data = await format_data(docs)
+            if not docs:
+                return {"error": "I do not have enough information to answer that question.", "status": "error"}
 
+            response = await get_answer(user_query, cleaned_data)
             return {
                 "status": "success",
-                "data":data
+                "data":response
             }
 
         except Exception as e:

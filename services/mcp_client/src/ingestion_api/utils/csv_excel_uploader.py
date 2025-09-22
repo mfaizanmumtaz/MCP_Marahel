@@ -4,8 +4,8 @@ import uuid
 from typing import Optional
 from fastapi import HTTPException
 import aiofiles
-from ingestion_api.db.user_db import UserFile
-from ingestion_api.db.postgres_connection import async_session
+from ingestion_api.db.models import UserFile
+from ingestion_api.db.connection import async_session
 from typing import List, Dict
 from sqlalchemy import select, delete
 from io import BytesIO

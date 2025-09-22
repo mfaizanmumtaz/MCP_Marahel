@@ -14,8 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from services.data_extraction_to_text import UniversalFileLoader
 
 # Import database dependencies
-from ingestion_api.db.postgres_connection import get_db
-from ingestion_api.db.user_db import KnowledgeBase, Tenant
+from ingestion_api.db.connection import get_db
+from ingestion_api.db.models import KnowledgeBase, Tenant
 from sqlalchemy import select
 
 # RAG vector store imports
@@ -23,29 +23,20 @@ from ingestion_api.utils.pg_vector import pg_insertion
 from langchain_openai import OpenAIEmbeddings
 from langchain_core.documents import Document
 import random
+from langchain_text_splitters import CharacterTextSplitter
 
 import string
 import datetime
 
-# Set up logging
-log_dir = os.path.join("..", "log", "ai")
-os.makedirs(log_dir, exist_ok=True)
+from config.settings import settings
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-formatter = logging.Formatter(
-    "%(asctime)s:%(name)s:%(levelname)s:%(message)s:%(funcName)s"
-)
-handler = logging.FileHandler(os.path.join(log_dir, "content_extractor_api.log"))
-handler.setFormatter(formatter)
-logger.addHandler(handler)
 
 # Create APIRouter instance
 content_extractor = APIRouter()
 
 # Initialize RAG components
-embedder = OpenAIEmbeddings(model="text-embedding-3-small")
+embedder = OpenAIEmbeddings(model=settings.OPENAI_EMBEDDING_MODEL)
 
 # Global loader instance (will be initialized in main.py)
 loader: Optional[UniversalFileLoader] = None
@@ -56,153 +47,10 @@ async def get_loader() -> UniversalFileLoader:
     global loader
     if loader is None:
         # Initialize loader if not already done
-        loader = UniversalFileLoader()
+        loader = UniversalFileLoader(openai_api_key=settings.OPENAI_API_KEY, openrouter_api_key=settings.OPENROUTER_API_KEY)
         logger.info("Loader initialized in dependency")
     return loader
 
-
-async def copy_existing_data_to_pgvector(
-    db: AsyncSession,
-    tenant_id: str,
-    user_id: Optional[str],
-    pgvector_collection_name: str,
-) -> int:
-    """
-    Copy existing knowledge_base data to pgvector when rag_access changes from false to true
-
-    Args:
-        db: Database session
-        tenant_id: Tenant UUID
-        user_id: Optional user ID
-        pgvector_collection_name: Name of the pgvector collection to use
-
-    Returns:
-        Number of entries copied to pgvector
-    """
-    try:
-        # Query existing knowledge_base entries that don't have pgvector collection name
-        if user_id:
-            query = select(KnowledgeBase).where(
-                KnowledgeBase.tenant_id == tenant_id,
-                KnowledgeBase.user_id == user_id,
-                KnowledgeBase.pgvector_collection_name.is_(
-                    None
-                ),  # Only entries without vector collection
-            )
-        else:
-            query = select(KnowledgeBase).where(
-                KnowledgeBase.tenant_id == tenant_id,
-                KnowledgeBase.pgvector_collection_name.is_(
-                    None
-                ),  # Only entries without vector collection
-            )
-
-        result = await db.execute(query)
-        existing_entries = result.scalars().all()
-
-        if not existing_entries:
-            logger.info("No existing entries found to copy to pgvector")
-            return 0
-
-        # Process each existing entry
-        copied_count = 0
-        all_documents = []
-        entry_ids = []
-
-        for entry in existing_entries:
-            try:
-                # Parse the stored JSON content
-                if entry.content.startswith("[") or entry.content.startswith("{"):
-                    content_data = json.loads(entry.content)
-                else:
-                    # Plain text content
-                    content_data = entry.content
-
-                # Convert to Document objects
-                documents = []
-                if isinstance(content_data, list):
-                    for item in content_data:
-                        if isinstance(item, dict):
-                            if "page_content" in item:
-                                metadata = item.get("metadata", {})
-                                documents.append(
-                                    Document(
-                                        page_content=item["page_content"],
-                                        metadata=metadata,
-                                    )
-                                )
-                            else:
-                                # Handle other dict formats
-                                page_content = str(item)
-                                documents.append(
-                                    Document(
-                                        page_content=page_content,
-                                        metadata={"entry_id": str(entry.id)},
-                                    )
-                                )
-                        else:
-                            # Handle string or other types
-                            page_content = str(item)
-                            documents.append(
-                                Document(
-                                    page_content=page_content,
-                                    metadata={"entry_id": str(entry.id)},
-                                )
-                            )
-                elif isinstance(content_data, str):
-                    # Plain text content
-                    documents.append(
-                        Document(
-                            page_content=content_data,
-                            metadata={"entry_id": str(entry.id)},
-                        )
-                    )
-
-                if documents:
-                    all_documents.extend(documents)
-                    entry_ids.append(entry.id)
-                    copied_count += 1
-
-            except Exception as e:
-                logger.error(f"Error processing existing entry {entry.id}: {str(e)}")
-                continue
-
-        # Insert all documents into pgvector if we have any
-        if all_documents:
-            try:
-                await pg_insertion(
-                    all_documents, embedder, pgvector_collection_name, user_id
-                )
-                logger.info(
-                    f"Successfully copied {len(all_documents)} documents from {copied_count} entries to pgvector: {pgvector_collection_name}"
-                )
-
-                # Update the existing entries with the pgvector collection name
-                for entry_id in entry_ids:
-                    await db.execute(
-                        select(KnowledgeBase).where(KnowledgeBase.id == entry_id)
-                    )
-                    entry_to_update = await db.get(KnowledgeBase, entry_id)
-                    if entry_to_update:
-                        entry_to_update.pgvector_collection_name = (
-                            pgvector_collection_name
-                        )
-
-                await db.commit()
-                logger.info(
-                    f"Updated {len(entry_ids)} existing entries with pgvector collection name"
-                )
-
-            except Exception as e:
-                logger.error(f"Error inserting existing data into pgvector: {str(e)}")
-                await db.rollback()
-                return 0
-
-        return copied_count
-
-    except Exception as e:
-        logger.error(f"Error copying existing data to pgvector: {str(e)}")
-        return 0
 
 
 async def save_upload_file(upload_file: UploadFile, destination_path: str) -> str:
@@ -299,7 +147,6 @@ async def extract_multiple_files(
     file_loader: UniversalFileLoader = Depends(get_loader),
     db: AsyncSession = Depends(get_db),
 ):
-
     if not user_id:
         user_id = None
 
@@ -307,7 +154,7 @@ async def extract_multiple_files(
     Extract text from multiple uploaded files and save to knowledge_base table
 
     Args:
-        files: List of uploaded files
+        request: FastAPI request object (used to extract files from form data)
         tenant_id: Tenant identifier (will be created if doesn't exist)
         user_id: Optional user identifier (if None, content is shared across all users in tenant)
         summary_access: Enable summary access (required)
@@ -319,10 +166,11 @@ async def extract_multiple_files(
 
     Returns:
         JSON response with success status and number of files processed
-    """
-    if not files:
-        raise HTTPException(status_code=400, detail="No files provided")
 
+    Note:
+        Files are required. At least one file must be uploaded.
+        Files are extracted from form data and validated automatically.
+    """
     if len(files) > 10:  # Limit number of files for performance
         raise HTTPException(
             status_code=400, detail="Maximum 10 files allowed per request"
@@ -346,55 +194,20 @@ async def extract_multiple_files(
         )
         db.add(tenant)
         await db.flush()  # Get the UUID without committing
-        logger.info(
-            f"Created new tenant: tenant_id='{tenant_id}', user_id='{user_id}', UUID={tenant.id}"
-        )
+        logger.info(f"Created new tenant: {tenant_id}")
     else:
         # Existing tenant - check if permissions need updating
-        original_rag_access = tenant.rag_access
-        permissions_updated = False
-        changes_made = []
-
         # Update permissions if they differ from current values
-        if tenant.summary_access != summary_access:
-            tenant.summary_access = summary_access
-            permissions_updated = True
-            changes_made.append(
-                f"summary_access: {tenant.summary_access} -> {summary_access}"
-            )
-
-        if tenant.translation_access != translation_access:
-            tenant.translation_access = translation_access
-            permissions_updated = True
-            changes_made.append(
-                f"translation_access: {tenant.translation_access} -> {translation_access}"
-            )
-
-        if tenant.rag_access != rag_access:
-            tenant.rag_access = rag_access
-            permissions_updated = True
-            changes_made.append(f"rag_access: {original_rag_access} -> {rag_access}")
-
-        if tenant.cag_access != cag_access:
-            tenant.cag_access = cag_access
-            permissions_updated = True
-            changes_made.append(f"cag_access: {tenant.cag_access} -> {cag_access}")
-
-        if permissions_updated:
-            logger.info(
-                f"Updated existing tenant permissions: tenant_id='{tenant_id}', changes: {changes_made}"
-            )
-        else:
-            logger.info(
-                f"Using existing tenant: tenant_id='{tenant_id}', no permission changes needed"
-            )
+        tenant.summary_access = summary_access
+        tenant.translation_access = translation_access
+        tenant.rag_access = rag_access
+        tenant.cag_access = cag_access
 
     # Use the actual UUID for foreign key
     final_tenant_id = str(tenant.id)
 
-    # Determine pgvector collection name - always create regardless of cag_access
+    # Always create pgvector collection name regardless of permissions
     pgvector_collection_name = None
-    copied_existing_data = False
 
     # Check if collection name already exists
     existing_entry = await db.execute(
@@ -411,7 +224,6 @@ async def extract_multiple_files(
     if existing_collection:
         # Reuse existing collection name
         pgvector_collection_name = existing_collection
-        logger.info(f"Reusing existing collection: {pgvector_collection_name}")
     else:
         # No existing collection - create new one
         ts = datetime.datetime.now().strftime("%y%m%d_%H%M")
@@ -422,20 +234,7 @@ async def extract_multiple_files(
             )
         else:
             pgvector_collection_name = f"pg_collection_{ts}_{rand}_{tenant_id}_shared"
-        logger.info(f"Created new collection: {pgvector_collection_name}")
 
-        # Check if this is an existing tenant case
-        if "tenant" in locals() and hasattr(tenant, "id"):  # Existing tenant case
-            # Copy existing data from knowledge_base to pgvector
-            logger.info("Checking for existing data to copy to pgvector...")
-            copied_count = await copy_existing_data_to_pgvector(
-                db, final_tenant_id, user_id, pgvector_collection_name
-            )
-            if copied_count > 0:
-                copied_existing_data = True
-                logger.info(
-                    f"Successfully copied {copied_count} existing entries to pgvector"
-                )
 
     processed_files = []
     temp_file_paths = []
@@ -467,15 +266,12 @@ async def extract_multiple_files(
 
         # Save all files concurrently
         await asyncio.gather(*file_tasks)
-        logger.info(
-            f"Successfully saved {len(file_tasks)} files to temporary locations"
-        )
 
         # Process all files concurrently using the loader
         processing_tasks = []
         valid_files = []  # Track which files are valid for processing
 
-        for temp_path, filename in temp_file_paths:
+        for i, (temp_path, filename) in enumerate(temp_file_paths):
             # All files should be processed - compression logic is handled in the loader
             # Pass original filename to preserve it in metadata
             processing_tasks.append(
@@ -495,7 +291,7 @@ async def extract_multiple_files(
             merged_documents = []
             successful_files = []
 
-            # Process extraction results and merge into single list
+            # Process extraction results and convert to standard Document format
             for temp_path, filename, result_index in valid_files:
                 try:
                     if isinstance(extraction_results[result_index], Exception):
@@ -509,49 +305,68 @@ async def extract_multiple_files(
                             }
                         )
                     else:
-                        # Get extracted data
+                        # Get extracted data and standardize to Document format
                         raw_data = extraction_results[result_index]
 
-                        # Convert plain text to Document objects for consistency
-                        if isinstance(raw_data, str):
-                            # Plain text (audio transcriptions) -> convert to Document object
-                            raw_data = [
-                                Document(
-                                    page_content=raw_data, metadata={"source": filename}
-                                )
-                            ]
+                        # Convert all data to standard LangChain Document structure
+                        file_documents = []
 
-                        # Add all documents from this file to merged list
-                        if isinstance(raw_data, list):
+                        if isinstance(raw_data, str):
+                            # Plain text (e.g., audio transcriptions) -> single Document
+                            file_documents.append(
+                                Document(
+                                    page_content=raw_data,
+                                    metadata={"source": filename, "original_filename": filename}
+                                )
+                            )
+                        elif isinstance(raw_data, list):
+                            # List of items -> convert each to Document
                             for item in raw_data:
-                                if hasattr(item, "page_content"):
-                                    merged_documents.append(item)
+                                if isinstance(item, Document):
+                                    # Already a Document, just update metadata
+                                    if not item.metadata:
+                                        item.metadata = {}
+                                    item.metadata["original_filename"] = filename
+                                    if "source" not in item.metadata:
+                                        item.metadata["source"] = filename
+                                    file_documents.append(item)
                                 elif isinstance(item, dict) and "page_content" in item:
-                                    # Convert dict to Document if it has page_content
+                                    # Dict with page_content -> convert to Document
                                     metadata = item.get("metadata", {})
-                                    merged_documents.append(
+                                    metadata["original_filename"] = filename
+                                    if "source" not in metadata:
+                                        metadata["source"] = filename
+                                    file_documents.append(
                                         Document(
                                             page_content=item["page_content"],
-                                            metadata=metadata,
+                                            metadata=metadata
                                         )
                                     )
                                 else:
-                                    # Create Document from string/other content
-                                    content = (
-                                        str(item) if not isinstance(item, str) else item
-                                    )
-                                    merged_documents.append(
+                                    # Any other content -> convert to Document
+                                    content = str(item) if not isinstance(item, str) else item
+                                    file_documents.append(
                                         Document(
                                             page_content=content,
-                                            metadata={"source": filename},
+                                            metadata={"source": filename, "original_filename": filename}
                                         )
                                     )
+                        else:
+                            # Any other data type -> convert to single Document
+                            content = str(raw_data)
+                            file_documents.append(
+                                Document(
+                                    page_content=content,
+                                    metadata={"source": filename, "original_filename": filename}
+                                )
+                            )
 
+                        # Add all documents from this file to merged list
+                        merged_documents.extend(file_documents)
                         successful_files.append(filename)
                         processed_files.append(
                             {"filename": filename, "status": "success"}
                         )
-                        logger.info(f"Successfully processed {filename}")
 
                 except Exception as e:
                     logger.error(f"Error processing {filename}: {str(e)}")
@@ -560,52 +375,84 @@ async def extract_multiple_files(
                     )
 
             # Save merged content to database and pgvector if we have successful extractions
-            if merged_documents:
-                try:
-                    # Store merged content as JSON string
-                    content_text = json.dumps(
-                        [
-                            doc.__dict__ if hasattr(doc, "__dict__") else str(doc)
-                            for doc in merged_documents
-                        ]
-                    )
+            pgvector_status = {"status": "not_attempted", "error": None}
+            postgres_status = {"status": "not_attempted", "error": None}
 
-                    # RAG processing: send merged documents to pgvector regardless of cag_access
-                    if pgvector_collection_name:
-                        try:
-                            # Insert all merged documents into pgvector
-                            await pg_insertion(
-                                merged_documents,
-                                embedder,
-                                pgvector_collection_name,
-                                user_id=user_id,
-                            )
-                            logger.info(
-                                f"Successfully inserted {len(merged_documents)} merged documents from {len(successful_files)} files into pgvector: {pgvector_collection_name}"
-                            )
-                        except Exception as e:
-                            logger.error(
-                                f"Error inserting merged documents into pgvector: {e}"
-                            )
+            if merged_documents:
+
+                # Convert Documents to standard dict format for PostgreSQL storage
+                documents_data = []
+                for doc in merged_documents:
+                    doc_dict = {
+                        "page_content": doc.page_content,
+                        "metadata": doc.metadata
+                    }
+                    documents_data.append(doc_dict)
+
+                # Store as simple list of Document dictionaries
+                content_text = json.dumps(documents_data)
+
+                # Try pgvector insertion first
+                if pgvector_collection_name:
+                    try:
+                        pgvector_status["status"] = "attempting"
+
+                        # Split documents using text splitter
+                        text_splitter = CharacterTextSplitter.from_tiktoken_encoder(
+                            encoding_name="cl100k_base",
+                            chunk_size=settings.CHUNK_SIZE,
+                            chunk_overlap=settings.CHUNK_OVERLAP
+                        )
+                        splitted_docs = text_splitter.split_documents(merged_documents)
+
+                        # Insert chunked documents into pgvector
+                        await pg_insertion(
+                            splitted_docs,
+                            embedder,
+                            pgvector_collection_name,
+                            user_id=user_id,
+                        )
+                        pgvector_status = {
+                            "status": "success",
+                            "collection_name": pgvector_collection_name,
+                            "documents_count": len(splitted_docs),
+                            "error": None
+                        }
+                    except Exception as e:
+                        pgvector_status = {
+                            "status": "failed",
+                            "error": str(e),
+                            "collection_name": pgvector_collection_name
+                        }
+                        logger.error(f"Error inserting documents into pgvector: {e}")
+                else:
+                    pgvector_status["status"] = "skipped_no_collection_name"
+
+                # Try PostgreSQL insertion
+                try:
+                    postgres_status["status"] = "attempting"
 
                     # Save single merged entry to knowledge_base table
                     knowledge_entry = KnowledgeBase(
                         tenant_id=final_tenant_id,
                         user_id=user_id,  # Optional user_id - if None, content is shared across tenant
                         content=content_text,
-                        pgvector_collection_name=pgvector_collection_name,  # Always store collection name
+                        pgvector_collection_name=pgvector_collection_name,  # Always store collection name regardless of permissions
                     )
 
                     db.add(knowledge_entry)
                     total_saved = 1  # Only one merged entry
 
-                    logger.info(
-                        f"Successfully saved merged content from {len(successful_files)} files to knowledge_base with collection: {pgvector_collection_name}"
-                    )
+                    postgres_status = {
+                        "status": "success",
+                    }
 
                 except Exception as e:
+                    postgres_status = {
+                        "status": "failed",
+                    }
                     logger.error(f"Error saving merged content to database: {str(e)}")
-                    # Update all successful files to error status
+                    # Update all successful files to error status if postgres fails
                     for i, file_info in enumerate(processed_files):
                         if file_info["status"] == "success":
                             processed_files[i] = {
@@ -615,34 +462,57 @@ async def extract_multiple_files(
                             }
 
         # Commit all database changes
-        await db.commit()
+        try:
+            await db.commit()
+        except Exception as e:
+            # If commit fails, update postgres status
+            logger.error(f"Database commit failed: {str(e)}")
+            if postgres_status.get("status") == "success":
+                postgres_status = {
+                    "status": "failed",
+                    "error": f"Database commit failed: {str(e)}"
+                }
+                # Update file statuses if commit fails
+                for i, file_info in enumerate(processed_files):
+                    if file_info["status"] == "success":
+                        processed_files[i] = {
+                            "filename": file_info["filename"],
+                            "status": "error",
+                            "error": f"Database commit failed: {str(e)}",
+                        }
+            await db.rollback()
 
-        logger.info(
-            f"Successfully processed {len(processed_files)} files, saved {total_saved} to database"
-        )
+        # Determine overall status based on both insertions
+        overall_success = (pgvector_status.get("status") in ["success", "skipped_no_collection_name"] and
+                          postgres_status.get("status") == "success")
 
         response_content = {
-            "message": "Successfully processed files",
-            # "total_files": len(processed_files),
-            # "saved_to_db": total_saved,
-            "user_id": user_id,
+            "message": "Successfully processed files" if overall_success else "Files processed with some insertion failures",
             "tenant_id": tenant_id,
+            "user_id": user_id,
             "files": processed_files,
+            "insertion_status": {
+                "pgvector": pgvector_status,
+                "postgres": postgres_status,
+                "overall_success": overall_success
+            },
+            "summary": {
+                "total_files_processed": len(processed_files),
+                "successful_extractions": len(successful_files) if 'successful_files' in locals() else 0,
+                "pgvector_inserted": pgvector_status.get("status") == "success",
+                "postgres_saved": postgres_status.get("status") == "success"
+            }
         }
 
-        # Add information about copied existing data if applicable
-        if copied_existing_data:
-            response_content["existing_data_copied"] = True
-            response_content["message"] += " and copied existing data to pgvector"
 
         return JSONResponse(content=response_content)
 
-    except HTTPException:
+    except HTTPException as he:
         await db.rollback()
         raise
     except Exception as e:
+        logger.error(f"Unexpected error processing files: {str(e)}")
         await db.rollback()
-        logger.error(f"Error processing files: {str(e)}")
         raise HTTPException(
             status_code=500, detail=f"Failed to process files: {str(e)}"
         )
@@ -653,7 +523,6 @@ async def extract_multiple_files(
             if os.path.exists(temp_path):
                 try:
                     os.unlink(temp_path)
-                    logger.debug(f"Deleted temporary file: {temp_path}")
                 except Exception as e:
                     logger.warning(
                         f"Failed to delete temporary file {temp_path}: {str(e)}"
@@ -710,24 +579,42 @@ async def get_content(
         result = await db.execute(query)
         knowledge_entries = result.scalars().all()
 
+        # Parse content as list of LangChain Documents
+        parsed_entries = []
+        for entry in knowledge_entries:
+            try:
+                # Parse JSON content which should be a list of Document dictionaries
+                documents = json.loads(entry.content) if entry.content else []
+
+                # Ensure documents is a list
+                if not isinstance(documents, list):
+                    documents = [documents]
+
+                parsed_entries.append({
+                    "id": str(entry.id),
+                    "user_id": entry.user_id,
+                    "documents": documents,  # List of {page_content: str, metadata: dict}
+                    "document_count": len(documents),
+                    "pgvector_collection_name": entry.pgvector_collection_name,
+                    "created_at": entry.created_at.isoformat(),
+                })
+            except json.JSONDecodeError:
+                # Fallback for non-JSON content
+                parsed_entries.append({
+                    "id": str(entry.id),
+                    "user_id": entry.user_id,
+                    "documents": [{"page_content": entry.content, "metadata": {}}],
+                    "document_count": 1,
+                    "pgvector_collection_name": entry.pgvector_collection_name,
+                    "created_at": entry.created_at.isoformat(),
+                })
+
         return JSONResponse(
             content={
                 "tenant_id": tenant_id,
                 "user_id": user_id,
                 "total_entries": len(knowledge_entries),
-                "entries": [
-                    {
-                        "id": str(entry.id),
-                        "user_id": entry.user_id,
-                        "content": json.loads(entry.content)
-                        if entry.content.startswith("[")
-                        or entry.content.startswith("{")
-                        else entry.content,
-                        "pgvector_collection_name": entry.pgvector_collection_name,
-                        "created_at": entry.created_at.isoformat(),
-                    }
-                    for entry in knowledge_entries
-                ],
+                "entries": parsed_entries,
             }
         )
 

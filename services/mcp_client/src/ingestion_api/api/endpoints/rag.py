@@ -6,7 +6,8 @@ import tempfile
 import random
 import datetime
 from sqlalchemy import select
-from ingestion_api.db.postgres_connection import AsyncSession, get_db
+from ingestion_api.db.connection import get_db
+from sqlalchemy.ext.asyncio import AsyncSession
 import string
 import os
 from ingestion_api.utils.qdrant_class import QdrantInsertRetrievalAll
@@ -14,7 +15,7 @@ from langchain_core.documents import Document
 from typing import List
 from langchain_openai import OpenAIEmbeddings
 import logging
-from ingestion_api.db.user_db import Collections_Dev
+from ingestion_api.db.models import Collections_Dev
 from ingestion_api.utils.pg_vector import pg_insertion
 from ingestion_api.utils.uuid_validater import validate_uuid
 from sqlalchemy.future import select
@@ -22,10 +23,9 @@ import aiofiles
 import aiofiles.os
 from fastapi import HTTPException
 from ingestion_api.utils.csv_excel_uploader import CSVExcelHandler
-from dotenv import load_dotenv, find_dotenv
+from config.settings import settings
 
 
-load_dotenv(find_dotenv())
 
 csv_excel_handler = CSVExcelHandler()
 
@@ -134,8 +134,8 @@ async def ingestion_file(
             if used_emb:
                 if used_emb == "openai":
                     embedder = OpenAIEmbeddings(
-                        model="text-embedding-3-small",
-                        api_key=os.getenv("OPENAI_API_KEY"),
+                        model=settings.OPENAI_EMBEDDING_MODEL,
+                        api_key=settings.OPENAI_API_KEY,
                     )
 
         else:
@@ -146,7 +146,7 @@ async def ingestion_file(
             collection_name = f"collection_{ts}_{rand}_{chatbot_id}"
             if embeddings_model == "openai":
                 embedder = OpenAIEmbeddings(
-                    model="text-embedding-3-small", api_key=os.getenv("OPENAI_API_KEY")
+                    model=settings.OPENAI_EMBEDDING_MODEL, api_key=settings.OPENAI_API_KEY
                 )
                 used_emb = "openai"
 

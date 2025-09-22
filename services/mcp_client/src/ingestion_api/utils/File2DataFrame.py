@@ -1,10 +1,7 @@
 import pandas as pd
 from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
-
-from dotenv import load_dotenv, find_dotenv
-
-load_dotenv(find_dotenv())
+from config.settings import settings
 
 
 def parse_evaluation_form(file_path):

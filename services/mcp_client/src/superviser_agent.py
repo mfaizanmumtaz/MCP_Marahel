@@ -1,6 +1,5 @@
 from fastapi import APIRouter, HTTPException
 from langchain_openai import ChatOpenAI
-from dotenv import load_dotenv
 import os
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.prebuilt import create_react_agent
@@ -9,10 +8,11 @@ from langchain_core.messages.utils import count_tokens_approximately
 from fastapi.responses import JSONResponse
 from schema.schmas import QueryRequest
 from langchain_mcp_adapters.client import MultiServerMCPClient
-from prompts.prompts import SYS_PROMPT_SUPERVISOR_AGENT
+from prompts.prompts import get_prompt_for_permissions
 from urllib.parse import quote_plus
-
-load_dotenv()
+from permissions.permission_manager import permission_manager
+from prompts.few_short_prompts import examples
+from config.settings import settings
 
 # Create router instead of FastAPI app
 chatbot_agent = APIRouter(tags=["Chat Agent"])
@@ -23,11 +23,20 @@ def pre_model_hook(state):
         state["messages"],
         strategy="last",
         token_counter=count_tokens_approximately,
-        max_tokens=50000,
+        max_tokens=100000,
         start_on="human",
         end_on=("human", "tool"),
     )
-    return {"llm_input_messages": trimmed_messages}
+
+    # Inject few-shot examples after system message
+    if trimmed_messages and trimmed_messages[0].type == "system":
+        # Keep system message first, then add few-shot examples, then rest of conversation
+        final_messages = [trimmed_messages[0]] + examples + trimmed_messages[1:]
+    else:
+        # If no system message, just add few-shot examples at the beginning
+        final_messages = examples + trimmed_messages
+
+    return {"llm_input_messages": final_messages}
 
 
 @chatbot_agent.post("/chat-bot")
@@ -36,11 +45,12 @@ async def _chatbot_agent(request: QueryRequest):
     query = request.query
     user_id = request.user_id
     tenant_id = request.tenant_id
+    session_id = request.session_id
 
 
     try:
         try:
-            mcp_server_url = os.getenv("MCP_SERVER_URL", "http://127.0.0.1:9697/mcp")
+            mcp_server_url = settings.MCP_SERVER_URL
             translation_summarization_client = MultiServerMCPClient(
                 {
                     "Services": {
@@ -52,7 +62,25 @@ async def _chatbot_agent(request: QueryRequest):
             )
 
             # Get tools from both clients
-            tools = await translation_summarization_client.get_tools()
+            all_tools = await translation_summarization_client.get_tools()
+
+            # Get tenant permissions for both tool filtering and prompt generation
+            tenant_permissions = await permission_manager.get_tenant_permissions(tenant_id)
+
+            # Filter tools based on tenant permissions
+            tools = await permission_manager.filter_tools_by_permissions(all_tools, tenant_id)
+
+            # Generate dynamic prompt based on available tools
+            dynamic_prompt = get_prompt_for_permissions(tenant_permissions)
+
+            # Check if no tools are available after filtering
+            if not tools:
+                return JSONResponse(
+                    content={
+                        "response": "I apologize, but you don't have access to any tools at the moment. Please contact your administrator to enable tool access for your account."
+                    },
+                    status_code=200
+                )
         except Exception:
             raise HTTPException(
                 status_code=500,
@@ -63,7 +91,7 @@ async def _chatbot_agent(request: QueryRequest):
 
         # config = {"configurable": {"thread_id": f"{tenant_id}"}}
 
-        DB_URI = f"postgresql://{os.getenv('PG_USER_NAME')}:{quote_plus(os.getenv('PG_PASSWORD'))}@{os.getenv('PG_HOST')}:{os.getenv('PG_PORT')}/{os.getenv('PG_NAME')}?sslmode=disable"
+        DB_URI = settings.PGVECTOR_CONNECTION_LEGACY
 
         if not DB_URI:
             raise ValueError("pgvector_connection environment variable is required")
@@ -76,11 +104,11 @@ async def _chatbot_agent(request: QueryRequest):
                 model=llm,
                 pre_model_hook=pre_model_hook,
                 tools=tools,
-                prompt=SYS_PROMPT_SUPERVISOR_AGENT,
+                prompt=dynamic_prompt,
                 checkpointer=checkpointer,
             )
 
-            config = {"configurable": {"thread_id": f"{user_id}"}}
+            config = {"configurable": {"thread_id": f"{session_id}"}}
 
             response = await agent.ainvoke(
                 {"messages": [{"role": "user", "content": query}]}, config
@@ -92,3 +120,8 @@ async def _chatbot_agent(request: QueryRequest):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing query: {str(e)}")
+
+
+
+
+

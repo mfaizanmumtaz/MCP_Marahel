@@ -1,25 +1,19 @@
 from sqlalchemy import select
 from summarization.database.connection import get_db
 from summarization.database.models import Tenant, KnowledgeBase
+from summarization.prompts import system_prompt_for_summarization
+from summarization.config.settings import settings
 from fastmcp import FastMCP
 from fastmcp.server.dependencies import get_http_headers
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
-import os
+from langchain_core.documents import Document
 import json
 import logging
-from dotenv import load_dotenv, find_dotenv
 
 logger = logging.getLogger(__name__)
 
-load_dotenv(find_dotenv())
-
 mcp = FastMCP("Data Summarization")
-
-
-system_prompt = """You are a helpful assistant designed to summarize text concisely and accurately.
-You will receive a block of text and your task is to generate a brief summary that captures the main points and essential information.
-Your summary should be clear, coherent, and easy to understand, avoiding unnecessary details or jargon."""
 
 @mcp.tool()
 async def get_summarization() -> dict:
@@ -90,25 +84,37 @@ async def get_summarization() -> dict:
                     "status": "error",
                 }
 
-            # Extract and combine all content for summarization
-            combined_content = []
+            # Convert knowledge_entries to LangChain Document objects
+            all_documents = []
             for entry in knowledge_entries:
-                content = (
-                    json.loads(entry.content)
-                    if entry.content.startswith("[")
-                    or entry.content.startswith("{")
-                    else entry.content
-                )
+                try:
+                    # Parse the stored content as JSON (should be list of Document dicts)
+                    if entry.content.startswith("[") or entry.content.startswith("{"):
+                        raw_data = json.loads(entry.content)
+                        # Convert to LangChain Document objects
+                        documents = [Document(**doc) for doc in raw_data] if isinstance(raw_data, list) else [Document(**raw_data)]
+                        all_documents.extend(documents)
+                    else:
+                        # Handle plain text content
+                        all_documents.append(Document(page_content=entry.content, metadata={"source": "raw_text"}))
+                except (json.JSONDecodeError, TypeError) as e:
+                    # Fallback for malformed content
+                    all_documents.append(Document(page_content=str(entry.content), metadata={"source": "fallback", "error": str(e)}))
 
-                if isinstance(content, list):
-                    combined_content.extend([str(item) for item in content])
-                elif isinstance(content, dict):
-                    combined_content.append(str(content))
-                else:
-                    combined_content.append(str(content))
+            # Format documents for summarization
+            formatted_content = []
+            for doc in all_documents:
+                content = doc.page_content
+                metadata = doc.metadata.get("original_filename") if doc.metadata else None
+
+                doc_info = f"Content: {content}"
+                if metadata:
+                    doc_info += f"\nOriginal Filename: {metadata}"
+
+                formatted_content.append(doc_info)
 
             # Join all content for summarization
-            text_to_summarize = "\n\n".join(combined_content)
+            text_to_summarize = "\n\n---\n\n".join(formatted_content)
 
             if len(text_to_summarize.strip()) < 10:
                 return {
@@ -117,8 +123,12 @@ async def get_summarization() -> dict:
                 }
 
             # Initialize OpenAI client and generate summary
-            prompt = ChatPromptTemplate([("system", system_prompt), ("user", "Text To summarize: ```{text}```")])
-            summarization_pipeline = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+            prompt = ChatPromptTemplate([("system", system_prompt_for_summarization), ("user", "Text To summarize: ```{text}```")])
+            summarization_pipeline = ChatOpenAI(
+                model=settings.openai_summarization_model,
+                temperature=settings.openai_temperature,
+                api_key=settings.openai_api_key
+            )
             chain = prompt | summarization_pipeline
             response = await chain.ainvoke({"text": text_to_summarize})
 
@@ -135,7 +145,3 @@ async def get_summarization() -> dict:
             "error": f"Failed to generate summary: {str(e)}",
             "status": "error",
         }
-
-
-if __name__ == "__main__":
-    mcp.run(transport="http")
