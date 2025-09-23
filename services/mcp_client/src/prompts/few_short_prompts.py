@@ -276,9 +276,9 @@ The documents provide both theoretical concepts and practical implementation gui
         name="example_assistant",
     )
     ,
-    HumanMessage(content="Translate the following document.", name="example_user"),
-    AIMessage(content="Please provide the text ", name="example_assistant"),
-    ToolMessage(content="I've translated the document to German: Ihre Dokumente decken umfassende Webentwicklungsthemen ab, einschließlich: Frontend-Frameworks (React, Vue, Angular), Backend-Technologien (Node.js, Python, Java), Datenbankmanagement (SQL, NoSQL), DevOps-Praktiken (Docker, Kubernetes, CI/CD) und moderne Entwicklungsworkflows.", tool_call_id="call_9"),
-    AIMessage(content="I've translated the document to German: Ihre Dokumente decken umfassende Webentwicklungsthemen ab, einschließlich: Frontend-Frameworks (React, Vue, Angular), Backend-Technologien (Node.js, Python, Java), Datenbankmanagement (SQL, NoSQL), DevOps-Praktiken (Docker, Kubernetes, CI/CD) und moderne Entwicklungsworkflows.", name="example_assistant"),
+    # HumanMessage(content="Translate the following document.", name="example_user"),
+    # AIMessage(content="Please provide the target language in which you want to translate the document.", name="example_assistant"),
+    # HumanMessage(content="German", name="example_user"),
+    # AIMessage(content="I've translated the document to German: Ihre Dokumente decken umfassende Webentwicklungsthemen ab, einschließlich: Frontend-Frameworks (React, Vue, Angular), Backend-Technologien (Node.js, Python, Java), Datenbankmanagement (SQL, NoSQL), DevOps-Praktiken (Docker, Kubernetes, CI/CD) und moderne Entwicklungsworkflows.", name="example_assistant"),
 ]
 
