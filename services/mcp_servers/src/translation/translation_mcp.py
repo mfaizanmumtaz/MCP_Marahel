@@ -136,12 +136,20 @@ async def get_translation(target_language: str) -> dict:
                 ("system", system_prompt_for_translation),
                 ("user", "Text to translate: ```{text}``` \nTarget language: {target_language}")
             ])
-            translation_pipeline = ChatOpenAI(
-                model=settings.openai_translation_model,
-                temperature=settings.openai_temperature,
-                api_key=settings.openai_api_key
-            )
-            chain = prompt | translation_pipeline
+            # translation_pipeline = ChatOpenAI(
+            #     model=settings.openai_translation_model,
+            #     temperature=settings.openai_temperature,
+            #     api_key=settings.openai_api_key
+            # )
+            llm = ChatOpenAI(
+  api_key=settings.OPENROUTER_API_KEY,
+  base_url=settings.OPENROUTER_BASE_URL,
+  model=settings.OPENAI_MODEL,
+  temperature=settings.openai_temperature
+)
+            
+
+            chain = prompt | llm
             response = await chain.ainvoke({"text": text_to_translate, "target_language": target_language})
 
             return {

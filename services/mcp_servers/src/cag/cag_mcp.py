@@ -17,11 +17,17 @@ logger = logging.getLogger(__name__)
 mcp = FastMCP("Raw KnowledgeBase")
 
 # Initialize LLM with settings
+# llm = ChatOpenAI(
+#     model=settings.OPENAI_MODEL,
+#     api_key=settings.OPENAI_API_KEY,
+#     temperature=settings.OPENAI_TEMPERATURE
+# )
+
 llm = ChatOpenAI(
-    model=settings.OPENAI_MODEL,
-    api_key=settings.OPENAI_API_KEY,
-    temperature=settings.OPENAI_TEMPERATURE
-)
+  api_key=settings.OPENROUTER_API_KEY,
+  base_url=settings.OPENROUTER_BASE_URL,
+  model=settings.OPENAI_MODEL,
+  temperature=settings.OPENAI_TEMPERATURE)
 
 async def format_data(docs):
     formatted_content = []

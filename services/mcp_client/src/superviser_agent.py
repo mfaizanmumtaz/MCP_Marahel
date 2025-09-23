@@ -1,21 +1,25 @@
 from fastapi import APIRouter, HTTPException
 from langchain_openai import ChatOpenAI
 import os
+import logging
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.prebuilt import create_react_agent
 from langchain_core.messages.utils import trim_messages
 from langchain_core.messages.utils import count_tokens_approximately
 from fastapi.responses import JSONResponse
 from schema.schmas import QueryRequest
-from langchain_mcp_adapters.client import MultiServerMCPClient
 from prompts.prompts import get_prompt_for_permissions
 from urllib.parse import quote_plus
 from permissions.permission_manager import permission_manager
 from prompts.few_short_prompts import examples
 from config.settings import settings
+from utils.mcp_client_wrapper import get_robust_mcp_client, MCPConnectionError
 
 # Create router instead of FastAPI app
 chatbot_agent = APIRouter(tags=["Chat Agent"])
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 def pre_model_hook(state):
@@ -49,20 +53,12 @@ async def _chatbot_agent(request: QueryRequest):
 
 
     try:
-        try:
-            mcp_server_url = settings.MCP_SERVER_URL
-            translation_summarization_client = MultiServerMCPClient(
-                {
-                    "Services": {
-                        "url": mcp_server_url,
-                        "transport": "streamable_http",
-                        "headers": {"user_id": user_id, "tenant_id": tenant_id},
-                    }
-                }
-            )
+        # Get robust MCP client instance
+        robust_client = await get_robust_mcp_client()
 
-            # Get tools from both clients
-            all_tools = await translation_summarization_client.get_tools()
+        try:
+            # Get tools using robust client with retry logic and fallback
+            all_tools = await robust_client.get_tools_with_fallback(user_id, tenant_id)
 
             # Get tenant permissions for both tool filtering and prompt generation
             tenant_permissions = await permission_manager.get_tenant_permissions(tenant_id)
@@ -75,19 +71,48 @@ async def _chatbot_agent(request: QueryRequest):
 
             # Check if no tools are available after filtering
             if not tools:
-                return JSONResponse(
-                    content={
-                        "response": "I apologize, but you don't have access to any tools at the moment. Please contact your administrator to enable tool access for your account."
-                    },
-                    status_code=200
-                )
-        except Exception:
-            raise HTTPException(
-                status_code=500,
-                detail="Error fetching tools please make sure your mcp server is runing.",
-            )
+                # Get connection stats for better error message
+                stats = robust_client.get_connection_stats()
 
-        llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0.5)
+                if not stats["is_healthy"]:
+                    logger.warning(f"MCP server unhealthy. Connection stats: {stats}")
+                    return JSONResponse(
+                        content={
+                            "response": "I apologize, but the knowledge base services are temporarily unavailable. I can still help answer general questions, but I cannot access your specific documents or use specialized tools at the moment. Please try again in a few minutes or contact support if this issue persists."
+                        },
+                        status_code=200
+                    )
+                else:
+                    return JSONResponse(
+                        content={
+                            "response": "I apologize, but you don't have access to any tools at the moment. Please contact your administrator to enable tool access for your account."
+                        },
+                        status_code=200
+                    )
+
+        except MCPConnectionError as e:
+            logger.error(f"MCP connection error: {str(e)}")
+            # Continue with empty tools list for graceful degradation
+            tools = []
+            tenant_permissions = await permission_manager.get_tenant_permissions(tenant_id)
+            dynamic_prompt = get_prompt_for_permissions(tenant_permissions)
+
+            # Add fallback message to prompt
+            dynamic_prompt += "\n\nIMPORTANT: Knowledge base services are currently unavailable. Apologize to the user and offer to help with general questions while services are being restored."
+
+        except Exception as e:
+            logger.error(f"Unexpected error getting tools: {str(e)}")
+            # Continue with empty tools list for graceful degradation
+            tools = []
+            tenant_permissions = await permission_manager.get_tenant_permissions(tenant_id)
+            dynamic_prompt = get_prompt_for_permissions(tenant_permissions)
+
+        # llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0.5)
+        llm = ChatOpenAI(
+  api_key=settings.OPENROUTER_API_KEY,
+  base_url=settings.OPENROUTER_BASE_URL,
+  model=settings.OPENAI_MODEL,
+  temperature=settings.OPENAI_TEMPERATURE)
 
         # config = {"configurable": {"thread_id": f"{tenant_id}"}}
 
@@ -123,7 +148,36 @@ async def _chatbot_agent(request: QueryRequest):
             return JSONResponse(content={"response": f"{ai_message}"}, status_code=200)
 
     except Exception as e:
+        logger.error(f"Error processing query: {str(e)}")
+        # Attempt to clean up MCP client on error
+        try:
+            robust_client = await get_robust_mcp_client()
+            await robust_client.close()
+        except:
+            pass
         raise HTTPException(status_code=500, detail=f"Error processing query: {str(e)}")
+
+
+@chatbot_agent.get("/mcp-stats")
+async def get_mcp_stats():
+    """Get MCP connection statistics"""
+    try:
+        robust_client = await get_robust_mcp_client()
+        stats = robust_client.get_connection_stats()
+
+        return JSONResponse(content={
+            "connection_attempts": stats["connection_attempts"],
+            "last_known_status": "healthy" if stats["is_healthy"] else "unknown",
+            "client_connected": stats["client_connected"],
+            "last_error": stats["last_connection_error"] if stats["last_connection_error"] else None
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting MCP stats: {str(e)}")
+        return JSONResponse(content={
+            "error": "Could not retrieve MCP statistics",
+            "details": str(e)
+        }, status_code=500)
 
 
 

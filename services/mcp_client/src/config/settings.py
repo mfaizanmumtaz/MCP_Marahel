@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     # OpenAI Settings
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
-    OPENAI_TEMPERATURE: float = float(os.getenv("OPENAI_TEMPERATURE", "0.5"))
+    OPENAI_TEMPERATURE: float = float(os.getenv("OPENAI_TEMPERATURE", "0.2"))
     OPENAI_EMBEDDING_MODEL: str = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
 
     # Anthropic Settings
@@ -64,12 +64,20 @@ class Settings(BaseSettings):
     MCP_SERVER_PORT: int = int(os.getenv("MCP_SERVER_PORT", "8001"))
     MCP_SERVER_URL: str = os.getenv("MCP_SERVER_URL", "http://127.0.0.1:9697/mcp")
 
+    # MCP Client Robustness Settings
+    MCP_MAX_RETRIES: int = int(os.getenv("MCP_MAX_RETRIES", "3"))
+    MCP_RETRY_DELAY: float = float(os.getenv("MCP_RETRY_DELAY", "1.0"))
+    MCP_BACKOFF_FACTOR: float = float(os.getenv("MCP_BACKOFF_FACTOR", "2.0"))
+    MCP_TIMEOUT: float = float(os.getenv("MCP_TIMEOUT", "30.0"))
+    MCP_HEALTH_CHECK_INTERVAL: float = float(os.getenv("MCP_HEALTH_CHECK_INTERVAL", "60.0"))
+
     # Document Processing Settings
     CHUNK_SIZE: int = int(os.getenv("chunk_size", "800"))
     CHUNK_OVERLAP: int = int(os.getenv("chunk_overlap", "300"))
 
     # Additional API Keys
     OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
+    OPENROUTER_BASE_URL: str = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 
     # Legacy property for backward compatibility
     @property

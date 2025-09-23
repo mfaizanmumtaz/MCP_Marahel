@@ -79,7 +79,20 @@ class Settings:
 
     @property
     def openai_temperature(self) -> float:
-        return float(os.getenv("OPENAI_TEMPERATURE", "0"))
+        return float(os.getenv("OPENAI_TEMPERATURE", "0.2"))
+    
+
+    @property
+    def OPENAI_MODEL(self) -> str:
+        return os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+
+    @property
+    def OPENROUTER_API_KEY(self) -> str:
+        return os.getenv("OPENROUTER_API_KEY", "")
+
+    @property
+    def OPENROUTER_BASE_URL(self) -> str:
+        return os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 
 # Create global settings instance
 settings = Settings()

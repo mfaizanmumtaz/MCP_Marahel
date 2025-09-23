@@ -22,6 +22,19 @@ class Settings:
     def pg_user_name(self) -> str:
         return os.getenv("PG_USER_NAME", "")
 
+    # Additional API Keys
+    @property
+    def OPENAI_MODEL(self) -> str:
+        return os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+
+    @property
+    def OPENROUTER_API_KEY(self) -> str:
+        return os.getenv("OPENROUTER_API_KEY", "")
+
+    @property
+    def OPENROUTER_BASE_URL(self) -> str:
+        return os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+
     @property
     def pg_password(self) -> str:
         return os.getenv("PG_PASSWORD", "")

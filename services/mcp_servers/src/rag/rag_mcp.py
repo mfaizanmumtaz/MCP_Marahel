@@ -17,25 +17,31 @@ logger = logging.getLogger(__name__)
 mcp = FastMCP("RAG KnowledgeBase")
 
 # Initialize LLM with settings
-llm = ChatOpenAI(
-    model=settings.openai_chat_model,
-    api_key=settings.openai_api_key,
-    temperature=settings.openai_temperature
-)
+# llm = ChatOpenAI(
+#     model=settings.openai_chat_model,
+#     api_key=settings.openai_api_key,
+#     temperature=settings.openai_temperature
+# )
 
-def get_answer(query,docs):
+llm = ChatOpenAI(
+  api_key=settings.OPENROUTER_API_KEY,
+  base_url=settings.OPENROUTER_BASE_URL,
+  model=settings.OPENAI_MODEL,
+  temperature=settings.OPENAI_TEMPERATURE)
+
+async def get_answer(query,docs):
     prompt = ChatPromptTemplate([
         ("system", system_prompt_for_rag_based_generation),
         ("user", "{query}")
     ])
     chain = prompt | llm
-    response = chain.invoke({"query": query, "context": docs}).content
-    return response
+    response = await chain.ainvoke({"query": query, "context": docs})
+    return response.content
 
 
 async def format_data(docs):
     formatted_content = []
-    for doc in docs.get("documents", []):
+    for doc in docs:
         # Extract content and metadata from LangChain Document objects
         content = doc.page_content
         metadata = doc.metadata.get("original_filename") if doc.metadata else None
@@ -111,7 +117,7 @@ async def rag_knowledge_base(user_query:str):
             response = await get_answer(user_query, cleaned_data)
             return {
                 "status": "success",
-                "data":response
+                "data": response
             }
 
         except Exception as e:
