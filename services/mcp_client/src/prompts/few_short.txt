@@ -1,0 +1,168 @@
+# Few-Shot Examples for Breastfeeding Knowledge Base
+
+## Arabic Examples (الأمثلة العربية)
+
+### Example 1: General Breastfeeding Information
+**User Query (Arabic):** ما هي فوائد الرضاعة الطبيعية للطفل؟
+**Response:** هناك العديد من فوائد الرضاعة الطبيعية للطفل منها:
+- يحتوي حليب الأم على كل المغذيات التي يحتاجها الرضيع
+- سهولة هضم حليب الأم مما يمكن الرضيع من الاستفادة منه بصورة مثالية
+- يحمي الطفل الرضيع من العدوى لاحتوائه على أجسام مضادة
+- يساعد حليب الأم على النمو العقلي والذهني للطفل
+- حليب الأم جاهز للرضاعة دائما ولا يحتاج إلى تحضير أو تدفئة
+
+### Example 2: Proper Latching Technique
+**User Query (Arabic):** كيف يكون التقام فم الطفل الرضيع للثدي بشكل صحيح؟
+**Response:** تحرص الأم المرضع عند التقام فم الطفل الرضيع للثدي أن يكون:
+- فتح الطفل لفمه جيداً
+- ملامسة ذقن الطفل للثدي
+- انقلاب شفته السفلى نحو الخارج
+- زيادة مساحة الهالة فوق فم الطفل عنها في أسفله
+
+### Example 3: Milk Production Hormones
+**User Query (Arabic):** ما هي الهرمونات المسؤولة عن إنتاج وتدفق حليب الأم؟
+**Response:**
+- **هرمون البرولاكتين:** يسمى بهرمون الحليب وهو المسؤول عن إفراز الحليب
+- **هرمون الأوكسيتوسين:** يسمى بهرمون تدفق الحليب وهو المسؤول عن تدفق الحليب قبل الإرضاع وأثناء الرضاعة
+
+### Example 4: Increasing Milk Supply
+**User Query (Arabic):** ماذا أفعل لزيادة كمية إدرار الحليب لدي؟
+**Response:** هناك طرق طبيعية وسهلة لزيادة الحليب:
+- البدء في الرضاعة الطبيعية بعد الولادة مباشرة
+- الإرضاع قدر المستطاع طوال اليوم مع التركيز على الرضاعة الليلية
+- إفراغ الثدي بشكل مستمر من خلال الاعتصار اليدوي أو الشفط
+- شرب ما لا يقل عن 3 لتر ماء يومياً
+- تناول المشروبات الساخنة مثل الحلبة واليانسون والكراوية
+
+### Example 5: Breast Problems During Breastfeeding
+**User Query (Arabic):** ما هي المشاكل التي يتعرض لها الثدي أثناء الرضاعة الطبيعية؟
+**Response:** المشاكل الشائعة تشمل:
+1. **الاحتقان (تحجر الثدي):** ثديان أكبر حجماً وأكثر ثقلاً وحساسية
+   - *العلاج:* الإرضاع فوراً، كمادات دافئة، مساج للثدي، كمادات باردة بعد الرضاعة
+2. **ألم الحلمة:** ألم أثناء الرضاعة مع تشققات محتملة
+   - *العلاج:* تصحيح الالتقام، دهن الحلمة بحليب الأم، تجنب الصابون
+3. **القناة المسدودة:** نتوء حساس ومؤلم
+   - *العلاج:* كمادات دافئة، تدليك الثدي، إرضاع من الثدي المتأثر أولاً
+
+---
+
+## English Examples (الأمثلة الإنجليزية)
+
+### Example 1: General Breastfeeding Benefits
+**User Query (English):** What are the benefits of breastfeeding for the baby?
+**Response:** Breastfeeding provides numerous benefits for the baby including:
+- Breast milk contains all the nutrients the infant needs
+- Easy digestion allows the baby to benefit optimally from breast milk
+- Protects the baby from infections due to antibodies
+- Supports mental and cognitive development
+- Breast milk is always ready and requires no preparation or warming
+- Prevents allergies that may be caused by artificial feeding
+
+### Example 2: Proper Breastfeeding Position
+**User Query (English):** How should I position my baby for proper breastfeeding?
+**Response:** For correct breastfeeding position, ensure:
+- The baby's mouth opens wide
+- The baby's chin touches the breast
+- The lower lip is turned outward
+- More areola is visible above the baby's mouth than below
+- Both mother and baby maintain straight backs
+- The baby faces and is close to the mother's chest
+
+### Example 3: Signs of Adequate Milk Intake
+**User Query (English):** How do I know if my baby is getting enough milk?
+**Response:** Two important indicators show your baby is getting enough milk:
+- The baby wets diapers 6-8 times per day (breast milk is 87% water)
+- Noticeable weight gain and growth
+
+Additional signs include:
+- 8-12 feeding sessions per day
+- 10-20 minutes per breast
+- You can hear the baby swallowing
+- Breasts feel empty and soft after effective feeding
+
+### Example 4: Breast Problems During Breastfeeding
+**User Query (English):** What breast problems might occur during breastfeeding?
+**Response:** Common breast problems include:
+1. **Engorgement:** Breasts become larger, heavier, sensitive, hard, and painful
+   - *Treatment:* Immediate feeding, warm compresses, breast massage, cold compresses after feeding
+2. **Nipple Pain:** Pain during feeding, possibly with cracks and bleeding
+   - *Treatment:* Correct latching, apply remaining breast milk to nipples, avoid soap, use safe moisturizer
+3. **Blocked Ducts:** Sensitive, painful lumps
+   - *Treatment:* Warm compresses, breast massage, feed from affected breast first
+4. **Breast Infection:** Fungal or bacterial infection
+   - *Treatment:* Contact doctor immediately, continue emptying breasts, rest and increase fluid intake
+
+### Example 5: Weaning Process
+**User Query (English):** When and how should I wean my baby?
+**Response:** According to WHO recommendations:
+- **When:** Gradual introduction of solid foods at 6 months while continuing breastfeeding until 24 months
+- **How:** Gradual weaning process:
+  - Reduce feeding sessions every 2-5 days
+  - Decrease duration of each session
+  - Increase time between sessions
+  - Many mothers stop daytime feeding first, keeping nighttime feeds last
+- **Important:** Avoid stopping suddenly to prevent breast problems like engorgement or infection
+
+### Example 6: Skin-to-Skin Contact
+**User Query (English):** What is skin-to-skin contact and why is it important?
+**Response:** Skin-to-skin contact involves placing the newborn without clothes on the mother's bare chest immediately after birth, covered together in a room with moderate temperature.
+
+**Benefits include:**
+- Enhanced bonding between mother and baby
+- Earlier initiation and longer duration of breastfeeding
+- Stimulation of milk production hormones (prolactin and oxytocin)
+- Transfer of beneficial bacteria from mother to baby
+- Temperature regulation for the baby
+- Improved heart rate in the newborn
+
+### Example 7: Milk Storage Guidelines
+**User Query (English):** How should I store pumped breast milk?
+**Response:** Proper breast milk storage guidelines:
+- Use clean, sterilized, dry containers
+- Store in small quantities (30-60ml) to avoid waste
+- **Room temperature (25°C):** 4 hours maximum
+- **Refrigerator (0-4°C):** Up to 8 days
+- **Freezer (separate from refrigerator):** Up to 3 months
+- **Cooler with ice packs:** 24 hours
+
+**Thawing frozen milk:**
+- Move from freezer to refrigerator 24 hours before use
+- Use warm (not hot) water bath
+- Gently swirl to mix (don't shake)
+- Never refreeze or reheat thawed milk
+
+### Example 8: Nipple Confusion
+**User Query (English):** Why does my baby refuse breastfeeding and prefer the bottle?
+**Response:** This is called "nipple confusion" or "nipple preference," which occurs when:
+- The baby cannot latch properly to the breast after using artificial nipples
+- The fast milk flow and hard texture of silicone nipples make breastfeeding difficult
+- The baby prefers the easier flow from bottles
+
+**Solutions:**
+- Replace silicone nipples with alternatives (cup, spoon, syringe)
+- Continue attempting direct breastfeeding with patience
+- Practice skin-to-skin contact to encourage acceptance
+- Maintain eye contact during feeding to build connection
+
+### Example 9: Benefits for Mothers
+**User Query (English):** What are the benefits of breastfeeding for mothers?
+**Response:** Breastfeeding benefits for mothers include:
+- Helps stop postpartum bleeding and returns uterus to pre-pregnancy size
+- Reduces risk of ovarian and breast cancer
+- Exclusive breastfeeding on demand can delay pregnancy during first 6 months
+- Provides convenience - no preparation time needed
+- Strengthens emotional bond with baby
+- Cost-effective compared to formula feeding
+- Burns calories, helping with postpartum weight loss
+
+### Example 10: Introduction of Solid Foods
+**User Query (English):** When should I introduce solid foods to my baby?
+**Response:** WHO recommendations for introducing solid foods:
+- **When:** Start at 6 months while continuing breastfeeding until 24 months
+- **How:**
+  - Introduce one food type at a time for several days to monitor allergic reactions
+  - Start with cooked, well-mashed foods, gradually increasing texture
+  - Begin with small amounts and gradually increase
+  - Avoid forcing the baby to eat large quantities
+  - Avoid salt, sugar, and spices initially
+  - Gradually increase number and variety of meals throughout the day

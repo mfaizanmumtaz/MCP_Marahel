@@ -96,12 +96,16 @@ async def _chatbot_agent(request: QueryRequest):
         if not DB_URI:
             raise ValueError("pgvector_connection environment variable is required")
 
+        # from pydantic import BaseModel
+        # class MyCustomState(BaseModel):
+        #     bit:bool = False
+
         async with AsyncPostgresSaver.from_conn_string(
             conn_string=DB_URI
         ) as checkpointer:
             # await checkpointer.setup()
             agent = create_react_agent(
-                model=llm,
+                model=llm, 
                 pre_model_hook=pre_model_hook,
                 tools=tools,
                 prompt=dynamic_prompt,
