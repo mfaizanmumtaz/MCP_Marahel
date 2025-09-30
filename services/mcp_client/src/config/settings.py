@@ -84,6 +84,11 @@ class Settings(BaseSettings):
     def PGVECTOR_CONNECTION_LEGACY(self) -> str:
         return f"postgresql://{self.PG_USER_NAME}:{quote(self.PG_PASSWORD)}@{self.PG_HOST}:{self.PG_PORT}/{self.PG_NAME}?sslmode=disable"
 
+    # Google Settings
+    GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
+    GOOGLE_MODEL: str = os.getenv("GOOGLE_MODEL", "gemini-2.5-flash")
+    GOOGLE_CACHE_TTL: int = int(os.getenv("GOOGLE_CACHE_TTL", "3600"))  # Cache TTL in seconds (default 1 hour)
+
     class Config:
         case_sensitive = True
 

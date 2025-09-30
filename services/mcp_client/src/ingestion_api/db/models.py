@@ -2,8 +2,9 @@ import asyncio
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, String, Text, DateTime, LargeBinary, Boolean
+from sqlalchemy import Column, String, Text, DateTime, LargeBinary, Boolean, ForeignKey
 from sqlalchemy.dialects.postgresql import TEXT, UUID
+from sqlalchemy.orm import relationship
 from ingestion_api.db.connection import async_engine as engine, Base
 
 
@@ -93,6 +94,21 @@ class KnowledgeBase(Base):
         String(255), nullable=True
     )  # Store pgvector collection name
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ModelPreference(Base):
+    __tablename__ = "model_preferences"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(
+        String(255),
+        ForeignKey('tenants.tenant_id', ondelete='CASCADE'),
+        nullable=False,
+        unique=True
+    )  # Foreign key to Tenant.tenant_id with cascade delete
+    model_provider = Column(String(50), nullable=False)  # 'openai' or 'gemini'
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 async def init_db():

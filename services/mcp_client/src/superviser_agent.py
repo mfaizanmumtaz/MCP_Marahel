@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from langchain_openai import ChatOpenAI
 import os
 import logging
@@ -14,6 +14,11 @@ from permissions.permission_manager import permission_manager
 from prompts.few_short_prompts import examples
 from config.settings import settings
 from utils.mcp_client_wrapper import get_robust_mcp_client, MCPConnectionError
+from ingestion_api.db.connection import get_db
+from ingestion_api.db.models import ModelPreference
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 # Create router instead of FastAPI app
 chatbot_agent = APIRouter(tags=["Chat Agent"])
@@ -44,7 +49,7 @@ def pre_model_hook(state):
 
 
 @chatbot_agent.post("/chat-bot")
-async def _chatbot_agent(request: QueryRequest):
+async def _chatbot_agent(request: QueryRequest, db: AsyncSession = Depends(get_db)):
     """Create an agent graph with the specified user_id and chatbot_id"""
     query = request.query
     user_id = request.user_id
@@ -53,12 +58,21 @@ async def _chatbot_agent(request: QueryRequest):
 
 
     try:
+        # Get model preference for this tenant
+        model_pref_result = await db.execute(
+            select(ModelPreference).where(ModelPreference.tenant_id == tenant_id)
+        )
+        model_pref = model_pref_result.scalar_one_or_none()
+        model_provider = model_pref.model_provider if model_pref else "openai"  # Default to openai
+
+        logger.info(f"Using model provider '{model_provider}' for tenant {tenant_id}")
+
         # Get robust MCP client instance
         robust_client = await get_robust_mcp_client()
 
         try:
             # Get tools using robust client with retry logic and fallback
-            all_tools = await robust_client.get_tools_with_fallback(user_id, tenant_id)
+            all_tools = await robust_client.get_tools_with_fallback(user_id, tenant_id, model_provider)
 
             # Get tenant permissions for both tool filtering and prompt generation
             tenant_permissions = await permission_manager.get_tenant_permissions(tenant_id)
@@ -108,11 +122,13 @@ async def _chatbot_agent(request: QueryRequest):
             dynamic_prompt = get_prompt_for_permissions(tenant_permissions)
 
         # llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0.5)
-        llm = ChatOpenAI(
-  api_key=settings.OPENROUTER_API_KEY,
-  base_url=settings.OPENROUTER_BASE_URL,
+        if model_provider == "openai":
+            llm = ChatOpenAI(
+  api_key=settings.OPENAI_API_KEY,
   model=settings.OPENAI_MODEL,
   temperature=settings.OPENAI_TEMPERATURE)
+        elif model_provider == "gemini":
+            llm = ChatGoogleGenerativeAI(model=settings.GOOGLE_MODEL, google_api_key=settings.GOOGLE_API_KEY, temperature=settings.OPENAI_TEMPERATURE)
 
         # config = {"configurable": {"thread_id": f"{tenant_id}"}}
 

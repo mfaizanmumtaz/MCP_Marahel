@@ -5,6 +5,7 @@ from translation.config.settings import settings
 from fastmcp import FastMCP
 from fastmcp.server.dependencies import get_http_headers
 from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.documents import Document
 import json
@@ -14,6 +15,21 @@ from translation.prompts import system_prompt_for_translation
 logger = logging.getLogger(__name__)
 
 mcp = FastMCP("Data Translation")
+
+# Initialize LLMs
+openai_llm = ChatOpenAI(
+    model=settings.openai_translation_model,
+    temperature=settings.openai_temperature,
+    api_key=settings.openai_api_key
+)
+
+gemini_llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash")
+
+def get_llm(model_provider: str):
+    """Get the appropriate LLM based on model provider"""
+    if model_provider and model_provider.lower() == "gemini":
+        return gemini_llm
+    return openai_llm  # Default to OpenAI
 
 @mcp.tool()
 async def get_translation(target_language: str) -> dict:
@@ -32,6 +48,7 @@ async def get_translation(target_language: str) -> dict:
         header = get_http_headers(include_all=True)
         tenant_id = header.get("tenant_id")
         user_id = header.get("user_id")
+        model_provider = header.get("model_provider", "openai")  # Default to openai if not provided
 
         # Validate input
         if not target_language:
@@ -46,7 +63,7 @@ async def get_translation(target_language: str) -> dict:
                 "status": "error",
             }
 
-        logger.info(f"Translation request from user: {user_id}, tenant: {tenant_id}, target_language: {target_language}")
+        logger.info(f"Translation request from user: {user_id}, tenant: {tenant_id}, target_language: {target_language}, model: {model_provider}")
 
         # Verify tenant exists
         db_generator = get_db()
@@ -131,23 +148,12 @@ async def get_translation(target_language: str) -> dict:
                     "status": "error",
                 }
 
-            # Initialize OpenAI client and generate translation
+            # Generate translation using appropriate LLM
             prompt = ChatPromptTemplate([
                 ("system", system_prompt_for_translation),
                 ("user", "Text to translate: ```{text}``` \nTarget language: {target_language}")
             ])
-            # translation_pipeline = ChatOpenAI(
-            #     model=settings.openai_translation_model,
-            #     temperature=settings.openai_temperature,
-            #     api_key=settings.openai_api_key
-            # )
-            llm = ChatOpenAI(
-  api_key=settings.OPENROUTER_API_KEY,
-  base_url=settings.OPENROUTER_BASE_URL,
-  model=settings.OPENAI_MODEL,
-  temperature=settings.openai_temperature
-)
-            
+            llm = get_llm(model_provider)
 
             chain = prompt | llm
             response = await chain.ainvoke({"text": text_to_translate, "target_language": target_language})

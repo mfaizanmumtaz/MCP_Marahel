@@ -112,5 +112,13 @@ class Settings:
     def OPENROUTER_BASE_URL(self) -> str:
         return os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 
+    @property
+    def GOOGLE_API_KEY(self) -> str:
+        return os.getenv("GOOGLE_API_KEY", "")
+    
+    @property
+    def GOOGLE_MODEL(self) -> str:
+        return os.getenv("GOOGLE_MODEL", "gemini-2.5-flash")
+
 # Create global settings instance
 settings = Settings()

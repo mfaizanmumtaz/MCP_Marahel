@@ -9,6 +9,7 @@ import json
 import logging
 from sqlalchemy import select
 from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 
 logger = logging.getLogger(__name__)
@@ -16,24 +17,27 @@ logger = logging.getLogger(__name__)
 # Initialize FastMCP
 mcp = FastMCP("RAG KnowledgeBase")
 
-# Initialize LLM with settings
-# llm = ChatOpenAI(
-#     model=settings.openai_chat_model,
-#     api_key=settings.openai_api_key,
-#     temperature=settings.openai_temperature
-# )
+# Initialize LLMs
+openai_llm = ChatOpenAI(
+    model=settings.openai_chat_model,
+    api_key=settings.openai_api_key,
+    temperature=settings.openai_temperature
+)
 
-llm = ChatOpenAI(
-  api_key=settings.OPENROUTER_API_KEY,
-  base_url=settings.OPENROUTER_BASE_URL,
-  model=settings.OPENAI_MODEL,
-  temperature=settings.OPENAI_TEMPERATURE)
+gemini_llm = ChatGoogleGenerativeAI(model=settings.GOOGLE_MODEL, google_api_key=settings.GOOGLE_API_KEY)
 
-async def get_answer(query,docs):
+def get_llm(model_provider: str):
+    """Get the appropriate LLM based on model provider"""
+    if model_provider and model_provider.lower() == "gemini":
+        return gemini_llm
+    return openai_llm  # Default to OpenAI
+
+async def get_answer(query, docs, model_provider: str = "openai"):
     prompt = ChatPromptTemplate([
         ("system", system_prompt_for_rag_based_generation),
         ("user", "{query}")
     ])
+    llm = get_llm(model_provider)
     chain = prompt | llm
     response = await chain.ainvoke({"query": query, "context": docs})
     return response.content
@@ -69,6 +73,8 @@ async def rag_knowledge_base(user_query:str):
         header = get_http_headers(include_all=True)
         tenant_id = header.get("tenant_id")
         user_id = header.get("user_id")
+        model_provider = header.get("model_provider", "openai")  # Default to openai if not provided
+
         if not user_id:
             return {
                 "error": "Missing user_id in token",
@@ -80,7 +86,7 @@ async def rag_knowledge_base(user_query:str):
                 "status": "error",
             }
         logger.info(f"Query: {user_query}")
-        logger.info(f"Knowledge base request from user: {user_id}, tenant: {tenant_id}")
+        logger.info(f"Knowledge base request from user: {user_id}, tenant: {tenant_id}, model: {model_provider}")
         logger.info(f"Query: {user_query}")
         db_generator = get_db()
         db = await db_generator.__anext__()
@@ -114,7 +120,7 @@ async def rag_knowledge_base(user_query:str):
             if not docs:
                 return {"error": "I do not have enough information to answer that question.", "status": "error"}
 
-            response = await get_answer(user_query, cleaned_data)
+            response = await get_answer(user_query, cleaned_data, model_provider)
             return {
                 "status": "success",
                 "data": response

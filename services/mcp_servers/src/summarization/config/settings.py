@@ -75,7 +75,7 @@ class Settings:
 
     @property
     def openai_summarization_model(self) -> str:
-        return os.getenv("OPENAI_SUMMARIZATION_MODEL", "gpt-4o-mini")
+        return os.getenv("OPENAI_SUMMARIZATION_MODEL", "gpt-4.1-mini")
 
     @property
     def openai_temperature(self) -> float:

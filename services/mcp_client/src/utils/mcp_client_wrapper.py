@@ -49,19 +49,25 @@ class RobustMCPClient:
         self._connection_attempts = 0
         self._last_connection_error: Optional[str] = None
 
-    async def _create_client(self, user_id: str, tenant_id: str) -> MultiServerMCPClient:
+    async def _create_client(self, user_id: str, tenant_id: str, model_provider: str = None) -> MultiServerMCPClient:
         """Create a new MCP client instance"""
         mcp_server_url = settings.MCP_SERVER_URL
+        headers = {
+            "user_id": user_id,
+            "tenant_id": tenant_id,
+            "Connection": "keep-alive",
+            "Keep-Alive": "timeout=30, max=100"
+        }
+
+        # Add model_provider to headers if provided
+        if model_provider:
+            headers["model_provider"] = model_provider
+
         client_config = {
             "Services": {
                 "url": mcp_server_url,
                 "transport": "streamable_http",
-                "headers": {
-                    "user_id": user_id,
-                    "tenant_id": tenant_id,
-                    "Connection": "keep-alive",
-                    "Keep-Alive": "timeout=30, max=100"
-                },
+                "headers": headers,
                 "timeout": self.timeout
             }
         }
@@ -112,13 +118,13 @@ class RobustMCPClient:
         # All retries failed
         raise MCPConnectionError(f"Failed after {self.max_retries + 1} attempts: {str(last_exception)}")
 
-    async def get_tools_with_fallback(self, user_id: str, tenant_id: str) -> List[BaseTool]:
+    async def get_tools_with_fallback(self, user_id: str, tenant_id: str, model_provider: str = None) -> List[BaseTool]:
         """Get tools from MCP server with fallback to empty list"""
         try:
             # Try to get tools with retry logic
             async def _get_tools():
                 if not self._client:
-                    self._client = await self._create_client(user_id, tenant_id)
+                    self._client = await self._create_client(user_id, tenant_id, model_provider)
                 return await self._client.get_tools()
 
             tools = await self._retry_with_backoff(_get_tools)
@@ -140,13 +146,14 @@ class RobustMCPClient:
         tool_name: str,
         arguments: Dict[str, Any],
         user_id: str,
-        tenant_id: str
+        tenant_id: str,
+        model_provider: str = None
     ) -> Dict[str, Any]:
         """Invoke tool with fallback response"""
         try:
             async def _invoke_tool():
                 if not self._client:
-                    self._client = await self._create_client(user_id, tenant_id)
+                    self._client = await self._create_client(user_id, tenant_id, model_provider)
 
                 # Get tools and find the requested one
                 tools = await self._client.get_tools()

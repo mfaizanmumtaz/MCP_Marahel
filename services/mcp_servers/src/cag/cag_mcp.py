@@ -8,6 +8,7 @@ from fastmcp.server.dependencies import get_http_headers
 import json
 import logging
 from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.documents import Document
 
@@ -16,18 +17,21 @@ logger = logging.getLogger(__name__)
 # Initialize FastMCP
 mcp = FastMCP("Raw KnowledgeBase")
 
-# Initialize LLM with settings
-# llm = ChatOpenAI(
-#     model=settings.OPENAI_MODEL,
-#     api_key=settings.OPENAI_API_KEY,
-#     temperature=settings.OPENAI_TEMPERATURE
-# )
+# Initialize LLMs
+openai_llm = ChatOpenAI(
+    model=settings.OPENAI_MODEL,
+    api_key=settings.OPENAI_API_KEY,
+    temperature=settings.OPENAI_TEMPERATURE
+)
 
-llm = ChatOpenAI(
-  api_key=settings.OPENROUTER_API_KEY,
-  base_url=settings.OPENROUTER_BASE_URL,
-  model=settings.OPENAI_MODEL,
-  temperature=settings.OPENAI_TEMPERATURE)
+gemini_llm = ChatGoogleGenerativeAI(model=settings.GOOGLE_MODEL, google_api_key=settings.GOOGLE_API_KEY)
+
+def get_llm(model_provider: str):
+    """Get the appropriate LLM based on model provider"""
+    if model_provider and model_provider.lower() == "gemini":
+        return gemini_llm
+    return openai_llm  # Default to OpenAI
+
 
 async def format_data(docs):
     formatted_content = []
@@ -46,11 +50,12 @@ async def format_data(docs):
     return "\n\n---\n\n".join(formatted_content)
 
 
-async def get_answer(query,docs):
+async def get_answer(query, docs, model_provider: str = "openai"):
     prompt = ChatPromptTemplate([
         ("system", system_prompt_for_cag_based_generation),
         ("user", "{query}")
     ])
+    llm = get_llm(model_provider)
     chain = prompt | llm
     response = await chain.ainvoke({"query": query, "context": docs})
     return response.content
@@ -74,6 +79,7 @@ async def cag_knowledge_base(user_query:str):
         # header = {"tenant_id": "marahel_abc1", "user_id": "string"}  # For testing without auth
         tenant_id = header.get("tenant_id")
         user_id = header.get("user_id")
+        model_provider = header.get("model_provider", "openai")  # Default to openai if not provided
 
         if not tenant_id:
             return {
@@ -81,7 +87,7 @@ async def cag_knowledge_base(user_query:str):
                 "status": "error",
             }
 
-        print(f"Knowledge base request from user: {user_id}, tenant: {tenant_id}")
+        logger.info(f"Knowledge base request from user: {user_id}, tenant: {tenant_id}, model: {model_provider}")
 
         db_generator = get_db()
         db = await db_generator.__anext__()
@@ -142,7 +148,7 @@ async def cag_knowledge_base(user_query:str):
                 "documents": all_documents
             }
             formatted_data = await format_data(data)
-            response = await get_answer(user_query,formatted_data)
+            response = await get_answer(user_query, formatted_data, model_provider)
             return response
         finally:
             await db.close()
