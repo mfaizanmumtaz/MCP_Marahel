@@ -6,11 +6,18 @@ from sqlalchemy import text
 from config.settings import settings
 
 
-async def pg_insertion(docs, embeddings, collection_name, user_id=None):
-    if user_id:
-        for doc in docs:
-            doc.metadata["user_id"] = user_id
+async def pg_insertion(docs, embeddings, collection_name):
+    """
+    Insert documents into pgvector collection
 
+    Args:
+        docs: List of Document objects
+        embeddings: Embeddings instance
+        collection_name: Name of the collection
+
+    Returns:
+        Insertion result
+    """
     # Use synchronous connection string for pgvector (langchain-postgres requirement)
     sync_connection = settings.PGVECTOR_CONNECTION_LEGACY
 

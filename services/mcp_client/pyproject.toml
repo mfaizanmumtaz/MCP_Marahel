@@ -26,14 +26,17 @@ dependencies = [
     "openpyxl>=3.1.5",
     "pandas>=2.2.3",
     "pymupdf>=1.25.5",
-    "pypdf>=5.4.0",
+    "pypdf2>=3.0.1",
+    "pdfplumber>=0.11.0",
     "pillow>=11.2.1",
+    "python-magic>=0.4.27",
     
     # AI/ML dependencies
     "langchain>=0.3.24",
     "langchain-core>=0.3.56",
     "langchain-openai>=0.3.24",
     "langchain-anthropic>=0.3.12",
+    "langchain-google-genai>=2.0.8",
     "langchain-community>=0.3.23",
     "langchain-text-splitters>=0.3.8",
     "langchain-postgres>=0.0.13",
@@ -41,6 +44,7 @@ dependencies = [
     "langgraph-checkpoint-postgres>=2.0.21",
     "openai>=1.76.2",
     "anthropic>=0.50.0",
+    "google-generativeai>=0.8.3",
     
     # Vector databases
     "qdrant-client>=1.14.2",

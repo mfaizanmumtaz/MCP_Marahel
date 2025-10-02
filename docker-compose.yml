@@ -12,5 +12,12 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    container_name: gotenberg
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
 volumes:
   pgdata:

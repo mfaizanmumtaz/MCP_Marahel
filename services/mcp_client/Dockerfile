@@ -17,8 +17,8 @@ RUN pip install --no-cache-dir uv
 
 COPY pyproject.toml .
 
-# Install runtime dependencies first (needed by pymupdf, etc.)
-RUN apk add --no-cache libstdc++
+# Install runtime dependencies first (needed by pymupdf, python-magic, etc.)
+RUN apk add --no-cache libstdc++ libmagic
 
 # Install Python dependencies
 RUN uv sync
@@ -30,8 +30,8 @@ RUN apk del .build-deps
 FROM python:3.13-alpine
 WORKDIR /app/src
 
-# Install runtime libraries
-RUN apk add --no-cache libstdc++
+# Install runtime libraries (libmagic for python-magic)
+RUN apk add --no-cache libstdc++ libmagic
 
 # Copy virtual environment from builder
 COPY --from=builder /app/.venv /app/.venv
@@ -41,7 +41,7 @@ ENV PATH="/app/.venv/bin:${PATH}"
 COPY ./src /app/src
 
 # Run the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "9696"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 
 

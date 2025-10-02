@@ -23,4 +23,4 @@ mcp.mount(rag_mcp)
  
 if __name__ == "__main__":
     # mcp.run(transport="streamable-http")
-    mcp.run(transport="streamable-http", host="127.0.0.1", port=9697, path="/mcp")
+    mcp.run(transport="streamable-http", host="0.0.0.0", port=9697, path="/mcp")

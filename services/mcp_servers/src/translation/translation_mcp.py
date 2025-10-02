@@ -23,7 +23,10 @@ openai_llm = ChatOpenAI(
     api_key=settings.openai_api_key
 )
 
-gemini_llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash")
+gemini_llm = ChatGoogleGenerativeAI(
+    model="gemini-2.5-flash",
+    google_api_key=settings.google_api_key
+)
 
 def get_llm(model_provider: str):
     """Get the appropriate LLM based on model provider"""

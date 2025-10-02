@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: postgres-pgvector
+    environment:
+      POSTGRES_DB: ${PG_NAME:-marahel}
+      POSTGRES_USER: ${PG_USER_NAME:-postgres}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-postgres}
+    ports:
+      - "${PG_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    container_name: gotenberg
+    ports:
+      - "3000:3000"
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  mcp-servers:
+    build:
+      context: ./services/mcp_servers
+      dockerfile: Dockerfile
+    container_name: mcp-servers
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - CLAUDE_API_KEY=${CLAUDE_API_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - PG_USER_NAME=${PG_USER_NAME:-postgres}
+      - PG_PASSWORD=${PG_PASSWORD:-postgres}
+      - PG_HOST=postgres
+      - PG_PORT=5432
+      - PG_NAME=${PG_NAME:-marahel}
+    ports:
+      - "9697:9697"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: always
+
+  mcp-client:
+    build:
+      context: ./services/mcp_client
+      dockerfile: Dockerfile
+    container_name: mcp-client
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - CLAUDE_API_KEY=${CLAUDE_API_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - PG_USER_NAME=${PG_USER_NAME:-postgres}
+      - PG_PASSWORD=${PG_PASSWORD:-postgres}
+      - PG_HOST=postgres
+      - PG_PORT=5432
+      - PG_NAME=${PG_NAME:-marahel}
+      - MCP_SERVER_HOST=mcp-servers
+      - MCP_SERVER_PORT=9697
+      - GOTENBERG_URL=http://gotenberg:3000
+      - HOST=0.0.0.0
+      - PORT=8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./storage:/app/src/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mcp-servers:
+        condition: service_started
+      gotenberg:
+        condition: service_healthy
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  pgdata:
+    driver: local

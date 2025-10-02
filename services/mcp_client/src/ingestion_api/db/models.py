@@ -85,15 +85,21 @@ class KnowledgeBase(Base):
     __tablename__ = "knowledge_base"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(String(255), nullable=False)
-    user_id = Column(
-        String(255), nullable=True
-    )  # Optional user isolation within tenant
-    content = Column(Text, nullable=False)
-    pgvector_collection_name = Column(
-        String(255), nullable=True
-    )  # Store pgvector collection name
+    tenant_id = Column(String(255), ForeignKey('tenants.tenant_id', ondelete='CASCADE'), nullable=False)
+    filename = Column(String(500), nullable=False)  # Original filename
+    file_type = Column(String(50), nullable=False)  # pdf, docx, doc
+    file_size_mb = Column(String(50), nullable=True)  # Original file size
+    extraction_method = Column(String(100), nullable=False)  # ocr, text_extraction, docx_conversion
+    processing_time_seconds = Column(String(50), nullable=True)  # Time taken to process
+    content = Column(Text, nullable=False)  # JSON array of Document objects
+    thumbnail_path = Column(String(500), nullable=True)  # Path to thumbnail image
+    pdf_path = Column(String(500), nullable=True)  # Path to converted/compressed PDF (for DOCX conversions)
+    pgvector_collection_name = Column(String(255), nullable=True)  # Store pgvector collection name
+    page_count = Column(String(50), nullable=True)  # Number of pages
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationship to tenant
+    tenant = relationship("Tenant", backref="documents", foreign_keys=[tenant_id])
 
 
 class ModelPreference(Base):

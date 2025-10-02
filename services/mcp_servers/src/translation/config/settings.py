@@ -94,5 +94,10 @@ class Settings:
     def openai_temperature(self) -> float:
         return float(os.getenv("OPENAI_TEMPERATURE", "0"))
 
+    # Google Configuration
+    @property
+    def google_api_key(self) -> Optional[str]:
+        return os.getenv("GOOGLE_API_KEY")
+
 # Create global settings instance
 settings = Settings()
